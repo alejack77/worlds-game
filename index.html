@@ -19,16 +19,15 @@ canvas{position:absolute;left:0;top:0;width:100%;height:100%;touch-action:none;i
 .ab{border-radius:50%;width:84px;height:84px;font-size:28px}
 #fsb{position:absolute;right:10px;top:10px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;z-index:5;
   background:rgba(0,0,0,.35);border:2px solid rgba(255,255,255,.4);border-radius:8px;color:#fff;font:bold 24px sans-serif;cursor:pointer;touch-action:none}
+#joyb{position:absolute;width:132px;height:132px;margin:-66px 0 0 -66px;border-radius:50%;background:rgba(255,255,255,.10);border:3px solid rgba(255,255,255,.35);box-sizing:border-box;pointer-events:none}
+#joyk{position:absolute;left:50%;top:50%;width:58px;height:58px;margin:-29px 0 0 -29px;border-radius:50%;background:rgba(255,255,255,.38);border:3px solid rgba(255,255,255,.6);box-sizing:border-box}
 #rot{position:absolute;inset:0;display:none;color:#fff;font:bold 22px monospace;align-items:center;justify-content:center;text-align:center;background:#000}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 <div id="pad">
-  <div class="b" data-k="up"    style="left:76px;bottom:152px;width:68px;height:68px">▲</div>
-  <div class="b" data-k="down"  style="left:76px;bottom:16px;width:68px;height:68px">▼</div>
-  <div class="b" data-k="left"  style="left:8px;bottom:84px;width:68px;height:68px">◀</div>
-  <div class="b" data-k="right" style="left:144px;bottom:84px;width:68px;height:68px">▶</div>
+  <div id="joyb"><div id="joyk"></div></div>
   <div class="b ab" data-k="a" style="right:24px;bottom:96px">A</div>
   <div class="b ab" data-k="b" style="right:120px;bottom:28px">B</div>
 </div>
@@ -63,7 +62,8 @@ function resize(){
     // controls float semi-transparent in the bottom corners, over the picture / black bars
     const S=Math.round(Math.max(40,Math.min(58,h*0.075))), AB=Math.round(S*1.5), m=14;
     const dpx=m, dpy=h-m-3*S, abx=w-m-AB*2-12, aby=h-m-AB-10;
-    const pos={up:[dpx+S,dpy],down:[dpx+S,dpy+2*S],left:[dpx,dpy+S],right:[dpx+2*S,dpy+S]};
+    const pos={};
+    JOY.rx=m+76; JOY.ry=h-m-76; if(!JOY.id){ placeJoy(JOY.rx,JOY.ry); }
     document.querySelectorAll('#pad .b').forEach(el=>{ const k=el.dataset.k; el.style.bottom=''; el.style.right='';
       if(pos[k]){ el.style.left=pos[k][0]+'px'; el.style.top=pos[k][1]+'px'; el.style.width=S+'px'; el.style.height=S+'px'; }
       else { el.style.width=AB+'px'; el.style.height=AB+'px'; el.style.left=(k==='a'?abx+AB+12:abx)+'px'; el.style.top=(k==='a'?aby-AB*0.45:aby)+'px'; } });
@@ -81,7 +81,7 @@ window.addEventListener('pointerdown',firstGesture,{capture:true});
 window.addEventListener('keydown',e=>{ if(e.code==='KeyF') toggleFS(); else firstGesture(); },{capture:true});
 document.getElementById('fsb').addEventListener('pointerdown',e=>{e.preventDefault(); e.stopPropagation(); fsAsked=true; toggleFS();});
 ['fullscreenchange','webkitfullscreenchange'].forEach(ev=>document.addEventListener(ev,()=>{ document.getElementById('fsb').style.display=isFS()?'none':'flex'; setTimeout(resize,50); }));
-window.addEventListener('resize',resize); window.addEventListener('orientationchange',()=>setTimeout(resize,200)); resize();
+window.addEventListener('resize',resize); window.addEventListener('orientationchange',()=>setTimeout(resize,200));
 document.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
 document.addEventListener('gesturestart',e=>e.preventDefault());
 document.addEventListener('dblclick',e=>e.preventDefault());
@@ -104,8 +104,27 @@ document.querySelectorAll('#pad .b').forEach(el=>{
   el.addEventListener('pointerup',up); el.addEventListener('pointercancel',up); el.addEventListener('lostpointercapture',up);
 });
 // tapping the screen itself = A (handy on title / text boxes)
-cv.addEventListener('pointerdown',e=>{e.preventDefault(); press('a'); setTimeout(()=>release('a'),60);});
+// ---- touch joystick: touch anywhere on the left half of the screen and drag; tap right half = A ----
+const JOY={id:null,cx:0,cy:0,rx:90,ry:600,R:56};
+function placeJoy(x,y){ const b=document.getElementById('joyb'); b.style.left=x+'px'; b.style.top=y+'px'; }
+function knob(dx,dy){ const k=document.getElementById('joyk'); k.style.transform=`translate(${dx}px,${dy}px)`; }
+function joyDirs(dx,dy){ const L=Math.hypot(dx,dy), dead=JOY.R*0.28; const want={up:false,down:false,left:false,right:false};
+  if(L>dead){ const a=Math.atan2(dy,dx), oct=Math.round(a/(Math.PI/4)); // 8 directions
+    const v=[[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]][(oct+8)%8];
+    want.right=v[0]>0; want.left=v[0]<0; want.down=v[1]>0; want.up=v[1]<0; }
+  for(const k in want){ if(want[k]&&!held[k]) press(k); else if(!want[k]&&held[k]) release(k); } }
+const TAPSTATES=['title','ending','gameover'];
+cv.addEventListener('pointerdown',e=>{ e.preventDefault();
+  if(IS_TOUCH && JOY.id===null && e.clientX<window.innerWidth*0.5 && !TAPSTATES.includes(state)){
+    JOY.id=e.pointerId; JOY.cx=e.clientX; JOY.cy=e.clientY; placeJoy(JOY.cx,JOY.cy); knob(0,0); cv.setPointerCapture(e.pointerId); return; }
+  press('a'); setTimeout(()=>release('a'),60);});
+cv.addEventListener('pointermove',e=>{ if(e.pointerId!==JOY.id) return; e.preventDefault();
+  let dx=e.clientX-JOY.cx, dy=e.clientY-JOY.cy; const L=Math.hypot(dx,dy); if(L>JOY.R){dx*=JOY.R/L;dy*=JOY.R/L;}
+  knob(dx,dy); joyDirs(dx,dy); });
+const joyEnd=e=>{ if(e.pointerId!==JOY.id) return; JOY.id=null; knob(0,0); joyDirs(0,0); placeJoy(JOY.rx,JOY.ry); };
+cv.addEventListener('pointerup',joyEnd); cv.addEventListener('pointercancel',joyEnd); cv.addEventListener('lostpointercapture',joyEnd);
 
+resize();
 // ---------------- audio ----------------
 let AC=null;
 function initAudio(){ if(AC) return; try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){} }
@@ -224,6 +243,8 @@ function updateOverworld(dt){
     for(const n of npcs){ if(n.type==='leafy'&&!n.alive) continue; const d=Math.hypot(n.x-fx,n.y-fy); if(d<bd){bd=d;best=n;} }
     if(best) talk(best);
   }
+  // walk into the dungeon entrance
+  if(Math.abs(P.x-ENT.x)<12 && P.y<ENT.y+8 && P.y>ENT.y-6){ if(dun1Done){ if(!ENT.msgCool){ENT.msgCool=true; say(['* Dungeon 1 is quiet now. You already have the pink stone.'],()=>{P.y=ENT.y+16;ENT.msgCool=false;});} } else { enterDungeon(); return; } }
   // enemies wander + touch
   for(const e of enemies){ if(e.gone) continue;
     e.t-=dt; e.cool=Math.max(0,e.cool-dt);
@@ -240,13 +261,15 @@ function talk(n){
   else if(n.type==='gala'){ owFace=['gala',0,0];
     say(["* ...","* Galamety: So The One came after all.","* Galamety: Find the seven stones, if you can.","* Galamety: I'll be waiting at the end of everything."],()=>{owFace=null;}); }
   else if(n.type==='leafy'){ owFace=['leafy',0,0];
-    if(n.questGiven){ say(["* Leafy: Seven stones, The One!","* Leafy: Pink, white, blue, light blue, red, yellow and green.","* Leafy: The leaves are counting on you."],()=>owFace=null); }
+    if(n.questGiven&&dun1Done){ say(["* Leafy: The PINK STONE! You did it!","* Leafy: Six more to go... I'll find out where the next dungeon is.","* Leafy: (TO BE CONTINUED)"],()=>owFace=null); }
+    else if(n.questGiven){ say(["* Leafy: DUNGEON 1 is at the far EAST end of the path. Follow the pink arrow!","* Leafy: Pink, white, blue, light blue, red, yellow and green.","* Leafy: The leaves are counting on you."],()=>owFace=null); }
     else say(["* Leafy: Oh! Hello! You must be The One!","* Leafy: I'm Leafy. Welcome to our forest.",
       "* Leafy: ...It used to be a happy place.","* Leafy: But the PAPER COMPANY built a factory here.",
       "* Leafy: They force all the leaves to work there, making paper. Day and night.",
       "* Leafy: There's only one way to stop them...","* Leafy: The SEVEN STONES.",
       "* Leafy: PINK. WHITE. BLUE. LIGHT BLUE.","* Leafy: RED. YELLOW. And GREEN.",
       "* Leafy: Each one is hidden deep in a dungeon.","* Leafy: Please, The One... collect all seven stones for us!",
+      "* Leafy: The first one, the PINK STONE, is in DUNGEON 1.","* Leafy: It's a cave with a pink glow at the far EAST end of the path.","* Leafy: Just follow the path to the right! I'll mark it for you.",
       "* Leafy: I believe in you!"],()=>{ owFace=null; n.questGiven=true; state='ending'; endT=0; endKind='quest'; });
   }
 }
@@ -262,11 +285,209 @@ function drawOverworld(){
     else if(n.type==='gala') list.push([n.y,()=>sprite('gala',0,0,n.x-cam.x,n.y-cam.y)]);
   }
   for(const e of enemies){ if(e.gone) continue; list.push([e.y,()=>{ if(e.cool>0&&Math.floor(T*10)%2) return; sprite('en_'+e.cfg.id,Math.floor(T*6+e.uid)%4,0,e.x-cam.x,e.y-cam.y);}]); }
+  list.push([ENT.y,drawEntrance]);
   list.push([P.y,()=>sprite('knight',P.frame,P.dir,P.x-cam.x,P.y-cam.y)]);
   list.sort((a,b)=>a[0]-b[0]); list.forEach(l=>l[1]());
   g.drawImage(IMG.shafts,cam.x,cam.y,VW,VH,0,0,VW,VH);
-  txt(`HP ${P.hp}/${P.max}`,6,5,'#ff6');
+  txt(`HP ${P.hp}/${P.max}`,6,5,'#ff6'); drawStonesHUD(); drawQuestMarker();
   if(!dialog) txt(IS_TOUCH?'A: talk':'Z: talk  X: back',VW-6,5,'#ddd',8,'right');
+  drawDialog(12,166,376,66,owFace);
+}
+
+
+// ======================= DUNGEON 1 (pink stone) =======================
+const STONE_COLS=['#ff78c8','#f0f4ff','#325ae6','#78d2ff','#e12832','#ffdc28','#3cc850'];
+const ENT={x:1240,y:334};           // dungeon 1 entrance on the overworld (east end of the path)
+let stones=0, dun1Done=false;
+colliders.push([ENT.x-30,ENT.y-30,22,30],[ENT.x+8,ENT.y-30,22,30],[ENT.x-8,ENT.y-34,16,24]);   // rock sides + back of the cave
+let ENT_IMG=null;
+function makeEntrance(){ const c=document.createElement('canvas'); c.width=64; c.height=48; const t=c.getContext('2d');
+  const R=(x,y,w,h,col)=>{t.fillStyle=col;t.fillRect(x,y,w,h);};
+  // rocky mound
+  const rows=[[20,44],[14,50],[10,54],[7,57],[5,59],[3,61],[2,62],[1,63],[1,63],[0,64]];
+  for(let y=0;y<48;y++){ const k=Math.min(rows.length-1,Math.floor(y/2)); const [a,b]=y<20?rows[k]:[0,64];
+    for(let x=a;x<b;x++){ const n=(x*7+y*13)%11; t.fillStyle=n<2?'#4a4652':n<5?'#5e5968':'#6f6a78'; t.fillRect(x,y,1,1);} }
+  for(let i=0;i<40;i++){ const x=(i*29)%60+2, y=(i*17)%14+2; R(x,y,3,2,'#3d7a3a'); }      // moss
+  R(0,0,64,1,'rgba(0,0,0,0)');
+  // dark arched opening
+  for(let y=14;y<48;y++){ const w=y<20?Math.round(10*Math.sqrt(1-((20-y)/6)**2)):10; R(32-w,y,w*2,1,'#08060c'); }
+  for(let y=14;y<48;y++){ const w=y<20?Math.round(10*Math.sqrt(1-((20-y)/6)**2)):10; R(32-w-1,y,1,1,'#26222c'); R(32+w,y,1,1,'#26222c'); }
+  // pink gem keystone
+  R(29,9,6,5,'#16101a'); R(30,10,4,3,'#ff78c8'); R(30,10,1,1,'#fff');
+  return c; }
+function drawEntrance(){
+  if(!ENT_IMG) ENT_IMG=makeEntrance();
+  const x=Math.round(ENT.x-32-cam.x), y=Math.round(ENT.y-48-cam.y);
+  g.drawImage(ENT_IMG,x,y);
+  if(!dun1Done){ const a=0.25+0.2*Math.sin(T*4); g.fillStyle=`rgba(255,120,200,${a})`; g.fillRect(x+23,y+16,18,32); g.fillStyle=`rgba(255,120,200,${a*0.5})`; g.fillRect(x+19,y+12,26,36); }
+  // sign post
+  g.fillStyle='#5a3a1e'; g.fillRect(x-14,y+30,2,18); g.fillStyle='#1a1008'; g.fillRect(x-30,y+20,34,12); g.fillStyle='#9a6a3a'; g.fillRect(x-29,y+21,32,10);
+  txt('DUNGEON 1',x-13,y+23,dun1Done?'#bfe86a':'#ffd0ee',6,'center');
+}
+function drawQuestMarker(){ // guidance arrow once Leafy gave the quest
+  if(!LEAFY.questGiven||dun1Done||dialog) return;
+  const sx=ENT.x-cam.x, sy=ENT.y-56-cam.y, bob=Math.round(Math.sin(T*5)*2);
+  const col=Math.floor(T*4)%2?'#ff78c8':'#ffd0ee';
+  if(sx>8&&sx<VW-8&&sy>10&&sy<VH){ g.fillStyle='#000'; g.fillRect(sx-5,sy-9+bob,11,7); g.fillRect(sx-3,sy-2+bob,7,3); g.fillRect(sx-1,sy+1+bob,3,2);
+    g.fillStyle=col; g.fillRect(sx-4,sy-8+bob,9,5); g.fillRect(sx-2,sy-3+bob,5,3); g.fillRect(sx,sy+0+bob,1,2); return; }
+  // off screen: arrow at the screen edge pointing toward the dungeon
+  const a=Math.atan2(sy-VH/2,sx-VW/2); const ex=clamp(VW/2+Math.cos(a)*170,14,VW-14), ey=clamp(VH/2+Math.sin(a)*100,24,VH-14);
+  g.save(); g.translate(Math.round(ex),Math.round(ey)); g.rotate(a); g.fillStyle='#000'; g.beginPath(); g.moveTo(9,0); g.lineTo(-6,-7); g.lineTo(-6,7); g.fill();
+  g.fillStyle=col; g.beginPath(); g.moveTo(7,0); g.lineTo(-5,-5); g.lineTo(-5,5); g.fill(); g.restore();
+  txt('DUNGEON 1',clamp(ex-Math.cos(a)*30,30,VW-30),clamp(ey-Math.sin(a)*14-4,16,VH-12),'#ffd0ee',8,'center');
+}
+function drawStonesHUD(){ txt('STONES',6,17,'#ddd',8); for(let i=0;i<7;i++){ const x=44+i*7, y=18; g.fillStyle='#000'; g.fillRect(x-1,y-1,6,7);
+  g.fillStyle=i<stones?STONE_COLS[i]:'#333'; g.fillRect(x,y,4,5); } txt(`${stones}/7`,94,17,stones?'#ff78c8':'#aaa',8); }
+
+const ROOMS=[
+ {name:'Mossy Hall',map:[
+"###########DDD###########",
+"#.......................#",
+"#..##.............##....#",
+"#..##.............##....#",
+"#.......................#",
+"#.......................#",
+"#.....##.........##.....#",
+"#.....##.........##.....#",
+"#.......................#",
+"#.......................#",
+"#..##.............##....#",
+"#..##.............##....#",
+"#.......................#",
+"#.......................#",
+"###########EEE###########"], foes:[['thornbush',6,9],['vine',18,5],['caterpillar',12,11]], hint:'* The air smells like wet moss...'},
+ {name:'Block Room',map:[
+"###########GGG###########",
+"#.......................#",
+"#.......................#",
+"#...######.....######...#",
+"#...#...............#...#",
+"#...#....P..........#...#",
+"#...#...............#...#",
+"#.......................#",
+"#..........B............#",
+"#.......................#",
+"#...#...............#...#",
+"#...#...............#...#",
+"#...######.....######...#",
+"#.......................#",
+"###########EEE###########"], foes:[['corruptleaf',21,8],['shadowleaf',3,8]], hint:'* A heavy stone block... and a pressure plate. Push the block onto the plate!'},
+ {name:'Throne of Thorns',map:[
+"#########################",
+"#.......................#",
+"#.......................#",
+"#..#.................#..#",
+"#.......................#",
+"#.......................#",
+"#.......................#",
+"#.......................#",
+"#.......................#",
+"#..#.................#..#",
+"#.......................#",
+"#.......................#",
+"#.......................#",
+"#.......................#",
+"###########EEE###########"], foes:[], boss:[12,6], hint:'* Something huge and thorny is waiting...'}];
+const THORN_KING={id:'thornking',name:'Thorn King',dboss:true,sheet:'en_thornbush',scale:3,hp:60,atk:4,pattern:'king',spareAfter:3,
+  intro:'* The THORN KING rises from his throne of brambles!',
+  check:'* THORN KING - ATK 4 DEF 3\n* Guardian of the pink stone. Bossy, but lonely.',
+  acts:[['Bow','* You bow to the king. He straightens his thorny crown.'],['Praise crown','* You say his crown is the pointiest you have ever seen. He blushes.'],['Offer water','* You water his roots. He sighs happily.']],
+  taunts:['Thorn King: KNEEL before the King of Thorns!','Thorn King: The pink stone is MINE!','Thorn King: ...you are polite for a tiny knight.','Thorn King: Hmph. Perhaps you are worthy of the stone.']};
+let D=null;   // {room, rooms:[{foes,blockX,blockY,solved,bossDone,stoneTaken}], ow:{x,y}}
+function newDungeon(){ return {room:0,stoneOut:false,rooms:ROOMS.map((r,i)=>{ const st={foes:[],solved:false,bossDone:false,stoneTaken:false};
+  r.map.forEach((row,y)=>{ const bx=row.indexOf('B'); if(bx>=0){st.bx=bx;st.by=y;st.b0=[bx,y];} const px=row.indexOf('P'); if(px>=0){st.px=px;st.py=y;} });
+  return st; }), ow:{x:P.x,y:P.y}}; }
+function tileAt(tx,ty){ const m=ROOMS[D.room].map; if(ty<0||ty>=15||tx<0||tx>=25) return '#'; return m[ty][tx]; }
+function solidTile(tx,ty,forBlock){ const c=tileAt(tx,ty), st=D.rooms[D.room];
+  if(c==='#') return true; if(c==='G'&&!st.solved) return true;
+  if(forBlock&&(c==='D'||c==='E'||c==='G')) return true;
+  if(st.bx!==undefined&&st.bx===tx&&st.by===ty) return true;
+  if(forBlock&&st.foes.some(f=>!f.gone&&Math.floor(f.x/16)===tx&&Math.floor((f.y-2)/16)===ty)) return true;
+  return false; }
+function dBlocked(x,y){ const x0=Math.floor((x-6)/16), x1=Math.floor((x+5)/16), y0=Math.floor((y-4)/16), y1=Math.floor((y+1)/16);
+  for(let ty=y0;ty<=y1;ty++) for(let tx=x0;tx<=x1;tx++) if(solidTile(tx,ty)) return [tx,ty]; return null; }
+function enterRoom(i,from){ D.room=i; const st=D.rooms[i], r=ROOMS[i];
+  if(st.bx!==undefined&&!st.solved){ st.bx=st.b0[0]; st.by=st.b0[1]; }   // unsolved puzzle resets when you come back
+  st.foes=r.foes.map(([id,tx,ty],k)=>{ const old=(st.done||[])[k]; const cfg=ENEMIES.find(e=>e.id===id)||ENEMIES[0];
+    return {cfg,x:tx*16+8,y:ty*16+14,hx:tx*16+8,hy:ty*16+14,tx:tx*16+8,ty:ty*16+14,t:0,cool:1.2,gone:!!old,k}; });
+  if(from==='south'){ P.x=12*16+8; P.y=13*16+10; P.dir=3; } else { P.x=12*16+8; P.y=1*16+14; P.dir=0; }
+  if(!st.seen){ st.seen=true; say([r.hint]); owFace=null; }
+  RCACHE=null; }
+function enterDungeon(){ D=newDungeon(); state='dungeon'; SFX.ok(); enterRoom(0,'south'); say(['* You step into DUNGEON 1.','* '+ROOMS[0].hint.slice(2)]); D.rooms[0].seen=true; }
+function exitDungeon(){ P.x=ENT.x; P.y=ENT.y+14; P.dir=0; state='overworld'; D=null; }
+let RCACHE=null;
+function roomCanvas(){ if(RCACHE&&RCACHE.room===D.room) return RCACHE.c;
+  const c=document.createElement('canvas'); c.width=VW; c.height=VH; const t=c.getContext('2d'); const m=ROOMS[D.room].map;
+  for(let ty=0;ty<15;ty++) for(let tx=0;tx<25;tx++){ const ch=m[ty][tx], X=tx*16, Y=ty*16;
+    if(ch==='#'){ t.fillStyle='#1c1a24'; t.fillRect(X,Y,16,16); t.fillStyle='#2b2836'; t.fillRect(X+1,Y+1,14,6); t.fillRect(X+1,Y+9,6,6); t.fillRect(X+9,Y+9,6,6);
+      t.fillStyle='#3a3648'; t.fillRect(X+1,Y+1,14,1); if((tx*7+ty*3)%5===0){ t.fillStyle='#2f6a34'; t.fillRect(X+2,Y+12,4,3); t.fillRect(X+3,Y+11,2,1);} }
+    else { const n=(tx*13+ty*7)%9; t.fillStyle=(tx+ty)%2?'#1d2a1c':'#203020'; t.fillRect(X,Y,16,16);
+      t.fillStyle='#26382a'; if(n<4) t.fillRect(X+3+n,Y+5,2,1); if(n>5) t.fillRect(X+9,Y+11-n%3,1,2);
+      if(n===2){ t.fillStyle='#3e5a2e'; t.fillRect(X+6,Y+8,3,1); t.fillRect(X+7,Y+7,1,1);} }
+    if(ch==='P'){ t.fillStyle='#000'; t.fillRect(X+1,Y+1,14,14); t.fillStyle='#8a2a6a'; t.fillRect(X+2,Y+2,12,12); t.fillStyle='#ff78c8'; t.fillRect(X+4,Y+4,8,8); }
+    if(ch==='E'||ch==='D'){ t.fillStyle='#0c0a10'; t.fillRect(X,Y,16,16); }
+  }
+  // wall-top shading under walls
+  for(let ty=1;ty<15;ty++) for(let tx=0;tx<25;tx++) if(m[ty][tx]!=='#'&&m[ty-1][tx]==='#'){ t.fillStyle='rgba(0,0,0,.35)'; t.fillRect(tx*16,ty*16,16,3); }
+  RCACHE={room:D.room,c}; return c; }
+function updateDungeon(dt){
+  if(dialog){ updateDialog(dt); return; }
+  const st=D.rooms[D.room], r=ROOMS[D.room];
+  let dx=(held.right?1:0)-(held.left?1:0), dy=(held.down?1:0)-(held.up?1:0); const sp=80;
+  if(dx||dy){ if(dx&&dy){dx*=0.7071;dy*=0.7071;}
+    P.dir=Math.abs(dx)>Math.abs(dy)?(dx>0?2:1):(dy>0?0:3);
+    const nx=P.x+dx*sp*dt, ny=P.y+dy*sp*dt;
+    const hx=dBlocked(nx,P.y); if(!hx) P.x=nx; else tryPush(hx,Math.sign(dx),0,dt);
+    const hy=dBlocked(P.x,ny); if(!hy) P.y=ny; else tryPush(hy,0,Math.sign(dy),dt);
+    P.anim+=dt*8; P.frame=Math.floor(P.anim)%4;
+  } else { P.frame=0; P.anim=0; D.push=0; }
+  // doors
+  const ftx=Math.floor(P.x/16), fty=Math.floor((P.y-2)/16), here=tileAt(ftx,fty);
+  if(here==='E'){ if(D.room===0) exitDungeon(); else enterRoom(D.room-1,'north'); return; }
+  if(here==='D'||(here==='G'&&st.solved)){ enterRoom(D.room+1,'south'); return; }
+  // enemies
+  for(const e of st.foes){ if(e.gone) continue; e.t-=dt; e.cool=Math.max(0,e.cool-dt);
+    if(e.t<=0){ e.tx=e.hx+rnd(-28,28); e.ty=e.hy+rnd(-16,16); e.t=rnd(1.2,2.8); }
+    const vx=e.tx-e.x, vy=e.ty-e.y, L=Math.hypot(vx,vy);
+    if(L>1){ const nx=e.x+vx/L*20*dt, ny=e.y+vy/L*20*dt; if(!dBlocked(nx,ny)){e.x=nx;e.y=ny;} else e.t=0; }
+    if(e.cool<=0&&Math.abs(e.x-P.x)<16&&Math.abs(e.y-P.y)<12){ startBattle(e.cfg,e); return; } }
+  // boss
+  if(r.boss&&!st.bossDone){ const bx=r.boss[0]*16+8, by=r.boss[1]*16+14;
+    if(Math.abs(bx-P.x)<26&&Math.abs(by-P.y)<18&&!D.bossCool){ D.bossCool=true; owFace=null;
+      say(['* THORN KING: Who dares enter my throne room?!','* THORN KING: The pink stone belongs to ME!'],()=>startBattle(THORN_KING,{boss:true})); return; } }
+  if(r.boss&&st.bossDone&&!st.stoneTaken){ const sx=r.boss[0]*16+8, sy=r.boss[1]*16+10;
+    if(Math.hypot(sx-P.x,sy-P.y)<14){ st.stoneTaken=true; stones=Math.max(stones,1); dun1Done=true; fanfare();
+      D.flashT=1.2; say(['* You got the PINK STONE!','* It glows warm in your hands. (1/7)','* The way out is open. Leafy will be so happy!'],()=>{ exitDungeon(); state='ending'; endT=0; endKind='stone1'; }); } }
+}
+function tryPush(hit,sx,sy,dt){ const st=D.rooms[D.room]; if(st.bx===undefined||st.solved) return;
+  if(hit[0]!==st.bx||hit[1]!==st.by) return; if(sx&&sy) return;
+  D.push=(D.push||0)+dt; if(D.push<0.18) return; D.push=0;
+  const nx=st.bx+sx, ny=st.by+sy; if(solidTile(nx,ny,true)) return;
+  st.bx=nx; st.by=ny; beep(150,0.08,'square',0.06);
+  if(st.bx===st.px&&st.by===st.py){ st.solved=true; SFX.win(); RCACHE=null; say(['* *CLICK*  The block sinks onto the plate.','* The gate to the north rumbles open!']); } }
+function fanfare(){ [523,659,784,1046,784,1046,1318].forEach((f,i)=>setTimeout(()=>beep(f,i===6?0.4:0.12,'triangle',0.08),i*120)); }
+function drawDungeon(){
+  g.drawImage(roomCanvas(),0,0);
+  const st=D.rooms[D.room], r=ROOMS[D.room], m=r.map;
+  // gate
+  for(let tx=0;tx<25;tx++) if(m[0][tx]==='G'){ const X=tx*16;
+    if(!st.solved){ g.fillStyle='#3a2414'; g.fillRect(X,0,16,16); g.fillStyle='#7a4a24'; for(let k=1;k<16;k+=5) g.fillRect(X+k,0,3,16); g.fillStyle='#ff78c8'; g.fillRect(X+6,6,4,4); }
+    else { g.fillStyle='#0c0a10'; g.fillRect(X,0,16,16); } }
+  const list=[];
+  if(st.bx!==undefined){ const X=st.bx*16, Y=st.by*16; list.push([Y+15,()=>{ g.fillStyle='#000'; g.fillRect(X,Y-4,16,20); g.fillStyle='#7a7484'; g.fillRect(X+1,Y-3,14,18);
+    g.fillStyle='#9a94a6'; g.fillRect(X+1,Y-3,14,4); g.fillStyle='#55505e'; g.fillRect(X+3,Y+5,10,1); g.fillRect(X+3,Y+9,10,1); if(st.solved){ g.fillStyle='#ff78c8'; g.fillRect(X+6,Y-2,4,2);} }]); }
+  for(const e of st.foes){ if(e.gone) continue; list.push([e.y,()=>{ if(e.cool>0&&Math.floor(T*10)%2) return; sprite('en_'+e.cfg.id,Math.floor(T*6+e.k)%4,0,e.x,e.y); }]); }
+  if(r.boss){ const bx=r.boss[0]*16+8, by=r.boss[1]*16+14;
+    if(!st.bossDone) list.push([by,()=>{ sprite('en_thornbush',Math.floor(T*4)%4,0,bx,by,2); // crown
+      g.fillStyle='#000'; g.fillRect(bx-9,by-74,19,9); g.fillStyle='#ffd23a'; g.fillRect(bx-8,by-73,17,7); g.fillStyle='#000'; g.fillRect(bx-5,by-73,2,3); g.fillRect(bx+3,by-73,2,3); g.fillStyle='#ff78c8'; g.fillRect(bx-1,by-70,3,3); }]);
+    else if(!st.stoneTaken) list.push([by,()=>{ const y=by-14+Math.round(Math.sin(T*3)*2); g.fillStyle=`rgba(255,120,200,${0.25+0.15*Math.sin(T*5)})`; g.fillRect(bx-10,y-10,21,21);
+      g.fillStyle='#000'; g.fillRect(bx-5,y-6,11,13); g.fillStyle='#ff78c8'; g.fillRect(bx-4,y-5,9,11); g.fillStyle='#ffc0e6'; g.fillRect(bx-3,y-4,3,3); g.fillStyle='#c04890'; g.fillRect(bx+1,y+2,3,3); }]); }
+  list.push([P.y,()=>sprite('knight',P.frame,P.dir,P.x,P.y)]);
+  list.sort((a,b)=>a[0]-b[0]); list.forEach(l=>l[1]());
+  // vignette
+  g.fillStyle='rgba(0,0,0,.25)'; g.fillRect(0,0,VW,6); g.fillRect(0,VH-6,VW,6);
+  txt(`HP ${P.hp}/${P.max}`,6,5,'#ff6'); drawStonesHUD(); txt('DUNGEON 1 - '+r.name,VW-6,5,'#ffd0ee',8,'right');
+  if(D.flashT>0){ D.flashT-=1/60; g.fillStyle=`rgba(255,180,230,${Math.max(0,D.flashT)*0.5})`; g.fillRect(0,0,VW,VH); }
   drawDialog(12,166,376,66,owFace);
 }
 
@@ -278,13 +499,13 @@ const LEAFY_BOSS={id:'leafy',name:'Leafy',boss:true,sheet:'leafy',hp:44,atk:4,pa
         ['Calm down','* You breathe slowly. Leafy copies you without noticing.'],
         ['Share sun','* You step aside so the sunlight hits him. He looks... warmer.']],
   taunts:['Leafy: GO AWAY!','Leafy: The forest is MINE to protect!','Leafy: ...why are you still nice to me?','Leafy: I... I don\'t want to fight anymore...']};
-let B=null;
+let B=null, retState='overworld';
 const BOX_MENU=[20,118,360,74];
 function startBattle(cfg,ent){
   SFX.battle();
   B={cfg,ent,hp:cfg.hp,max:cfg.hp,acts:0,spare:false,phase:'text',sel:0,sub:0,t:0,bul:[],soul:{x:200,y:155},inv:0,
      box:BOX_MENU.slice(),target:BOX_MENU.slice(),msg:[cfg.intro],mi:0,chars:0,next:'menu',fight:null,flash:0,shake:0,dmgText:null,turn:0,endKind:null};
-  state='battle';
+  retState=(state==='dungeon')?'dungeon':'overworld'; state='battle';
 }
 function bMsg(lines,next){ B.msg=Array.isArray(lines)?lines:[lines]; B.mi=0; B.chars=0; B.phase='text'; B.next=next; B.target=BOX_MENU.slice(); }
 function canSpare(){ return B.acts>=B.cfg.spareAfter; }
@@ -295,22 +516,26 @@ function enemyTurn(){
 }
 function startDodge(){
   B.phase='dodge'; B.t=0; B.bul=[]; B.spawn=0; B.turn++;
-  B.target=[140,104,120,86]; B.soul={x:200,y:104+86-12}; B.dur=B.cfg.boss?7:5;
+  B.target=[140,104,120,86]; B.soul={x:200,y:104+86-12}; B.dur=(B.cfg.boss||B.cfg.dboss)?7:5;
 }
 function endBattle(kind){
   B.endKind=kind; SFX.win();
   let lines;
-  if(kind==='win'){ P.exp+=B.cfg.boss?50:10; P.kills++; lines=B.cfg.boss?['* Leafy crumbles into dry little pieces...','* The forest goes very quiet.','* You got 50 EXP.']:[`* You won! ${B.cfg.name} withered away.`,'* You got 10 EXP.']; }
+  if(kind==='win'&&B.cfg.dboss){ P.exp+=30; P.kills++; lines=['* You defeated the THORN KING!','* You got 30 EXP.']; }
+  else if(kind==='spare'&&B.cfg.dboss){ P.spares++; lines=['* You spared the THORN KING.','* He seems... touched.']; }
+  else if(kind==='win'){ P.exp+=B.cfg.boss?50:10; P.kills++; lines=B.cfg.boss?['* Leafy crumbles into dry little pieces...','* The forest goes very quiet.','* You got 50 EXP.']:[`* You won! ${B.cfg.name} withered away.`,'* You got 10 EXP.']; }
   else if(kind==='spare'){ P.spares++; lines=B.cfg.boss?['* You spared Leafy.','* Leafy: ...you really ARE different.','* Leafy: Fine. I\'ll trust you. For now.']:[`* You spared ${B.cfg.name}.`,'* It wanders off, a little happier.']; }
   else if(kind==='flee'){ lines=['* You ran away safely.']; }
   bMsg(lines,'leave');
 }
 function leaveBattle(){
   const k=B.endKind, cfg=B.cfg;
-  if(B.ent){ if(k==='flee'){ B.ent.cool=2.5; } else B.ent.gone=true; }
+  if(B.ent&&!cfg.dboss){ if(k==='flee'){ B.ent.cool=2.5; } else B.ent.gone=true; }
   if(cfg.boss){ if(k==='win'){ LEAFY.alive=false; } else if(k==='spare'){ LEAFY.spared=true; }
     state='ending'; endT=0; endKind=k; B=null; return; }
-  B=null; state='overworld';
+  if(cfg.dboss){ D.rooms[D.room].bossDone=true; D.bossCool=false; B=null; state='dungeon'; say(k==='spare'?['* The Thorn King bows his thorny head.','* THORN KING: Take the stone, polite knight.']:['* The Thorn King crumbles into brambles...','* Something pink glows where he stood.']); return; }
+  if(B.ent&&B.ent.k!==undefined&&D){ const st=D.rooms[D.room]; st.done=st.done||[]; if(k!=='flee') st.done[B.ent.k]=true; }
+  B=null; state=retState;
 }
 let endT=0,endKind=null;
 
@@ -320,6 +545,11 @@ function hurt(){
 }
 // ---- attack patterns (data-driven by cfg.pattern) ----
 const PATTERNS={
+  king(b,dt,bx){ // Thorn King: thorn volleys + bramble whips + falling thorns later
+    b.s1=(b.s1||0)-dt; b.s2=(b.s2===undefined?0.6:b.s2)-dt;
+    if(b.s1<=0){ b.s1=0.42; for(let k=0;k<2;k++){ const side=Math.floor(rnd(0,4)); let x,y; if(side===0){x=rnd(bx[0],bx[0]+bx[2]);y=bx[1]-4;} else if(side===1){x=rnd(bx[0],bx[0]+bx[2]);y=bx[1]+bx[3]+4;} else if(side===2){x=bx[0]-4;y=rnd(bx[1],bx[1]+bx[3]);} else {x=bx[0]+bx[2]+4;y=rnd(bx[1],bx[1]+bx[3]);}
+      const a=Math.atan2(b.soul.y-y,b.soul.x-x); b.bul.push({k:'thorn',x,y,vx:Math.cos(a)*75,vy:Math.sin(a)*75,r:2,life:4}); } }
+    if(b.s2<=0){ b.s2=1.3; b.bul.push({k:Math.random()<0.5?'hline':'vcol',y:Math.round(rnd(bx[1]+6,bx[1]+bx[3]-6)),x:Math.round(rnd(bx[0]+10,bx[0]+bx[2]-10)),w:14,warn:0.6,act:0.3,life:0.9}); } },
   thorns(b,dt,bx){ b.spawn-=dt; if(b.spawn<=0){ b.spawn=0.32; const side=Math.floor(rnd(0,4)); let x,y;
       if(side===0){x=rnd(bx[0],bx[0]+bx[2]);y=bx[1]-4;} else if(side===1){x=rnd(bx[0],bx[0]+bx[2]);y=bx[1]+bx[3]+4;}
       else if(side===2){x=bx[0]-4;y=rnd(bx[1],bx[1]+bx[3]);} else {x=bx[0]+bx[2]+4;y=rnd(bx[1],bx[1]+bx[3]);}
@@ -460,7 +690,7 @@ function drawBattle(){
   const atk=b.phase==='dodge';
   if(!(b.flash>0&&Math.floor(b.flash*20)%2)){
     if(b.cfg.boss) sprite(b.cfg.sheet,Math.floor(b.t*(atk?8:3))%4,0,200+sh,108,2);
-    else sprite(b.cfg.sheet,Math.floor(b.t*(atk?8:4))%4,atk?1:0,200+sh,108,2);
+    else sprite(b.cfg.sheet,Math.floor(b.t*(atk?8:4))%4,atk?1:0,200+sh,108-(b.cfg.scale?(b.cfg.scale-2)*8:0),b.cfg.scale||2);
   }
   // enemy name + hp
   txt(b.cfg.name,200,4,canSpare()?'#ff0':'#fff',10,'center');
@@ -521,7 +751,14 @@ function drawEnding(){
     SC.forEach((c,i)=>{ const x=128+i*24, y=158+Math.round(Math.sin(T*3+i)*2); g.fillStyle='#111'; g.fillRect(x-4,y-1,9,9);
       g.fillStyle=c; g.fillRect(x-3,y,7,7); g.fillStyle='#fff'; g.fillRect(x-2,y+1,2,2); });
     txt('Find the seven stones. Free the leaves.',200,178,'#fff',10,'center');
-    txt('TO BE CONTINUED',200,198,'#ff0',12,'center');
+    txt('First stop: DUNGEON 1, east end of the path  →',200,196,'#ffd0ee',9,'center');
+    if(endT>1.5&&Math.floor(T*2)%2) txt(IS_TOUCH?'tap to continue':'press Z to continue',200,222,'#ccc',10,'center'); return; }
+  if(endKind==='stone1'){ txt('PINK STONE OBTAINED!',200,30,'#ff78c8',18,'center');
+    const y=96+Math.round(Math.sin(T*3)*3); g.fillStyle=`rgba(255,120,200,${0.2+0.1*Math.sin(T*5)})`; g.fillRect(176,y-24,48,48);
+    g.fillStyle='#000'; g.fillRect(189,y-13,22,26); g.fillStyle='#ff78c8'; g.fillRect(191,y-11,18,22); g.fillStyle='#ffc0e6'; g.fillRect(193,y-9,6,6); g.fillStyle='#c04890'; g.fillRect(201,y+3,6,6);
+    STONE_COLS.forEach((c,i)=>{ const x=128+i*24, yy=146; g.fillStyle='#111'; g.fillRect(x-4,yy-1,9,9); g.fillStyle=i<stones?c:'#333'; g.fillRect(x-3,yy,7,7); });
+    txt(`Stones: ${stones}/7`,200,164,'#fff',10,'center');
+    txt('TO BE CONTINUED...  '+(7-stones)+' stones left',200,190,'#ff0',11,'center');
     if(endT>1.5&&Math.floor(T*2)%2) txt(IS_TOUCH?'tap to keep exploring':'press Z to keep exploring',200,222,'#ccc',10,'center'); return; }
   if(endKind==='spare'){ txt('LEAFY WAS SPARED',200,50,'#ff0',18,'center'); sprite('leafy',Math.floor(T*4)%4,0,170,150,1); sprite('knight',0,0,230,150,1);
     txt('Leafy is your friend now.',200,160,'#fff',10,'center'); }
@@ -552,9 +789,10 @@ function frame(now){
 function step(dt){
   if(state==='title'){ drawTitle(); if(pressed.a){ SFX.ok(); state='overworld'; } }
   else if(state==='overworld'){ updateOverworld(dt); drawOverworld(); }
-  else if(state==='battle'){ updateBattle(dt); if(state==='battle') drawBattle(); else if(state==='overworld') drawOverworld(); }
+  else if(state==='dungeon'){ updateDungeon(dt); if(state==='dungeon') drawDungeon(); else if(state==='overworld') drawOverworld(); else if(state==='battle') drawBattle(); }
+  else if(state==='battle'){ updateBattle(dt); if(state==='battle') drawBattle(); else if(state==='overworld') drawOverworld(); else if(state==='dungeon') drawDungeon(); }
   else if(state==='ending'){ endT+=dt; drawEnding(); if(endT>1.5&&pressed.a){ state='overworld'; } }
-  else if(state==='gameover'){ drawGameOver(); if(T>1&&pressed.a){ P.hp=P.max; P.x=40; P.y=384; P.dir=0; B=null; spawnEnemies(true); state='overworld'; } }
+  else if(state==='gameover'){ drawGameOver(); if(T>1&&pressed.a){ P.hp=P.max; P.x=40; P.y=384; P.dir=0; B=null; D=null; spawnEnemies(true); state='overworld'; } }
 }
 let errShown=false;
 function showErr(err){ if(errShown) return; errShown=true; console.error(err); g.fillStyle='#400'; g.fillRect(0,0,VW,40); txt('Error: '+(err&&err.message),4,4,'#fff',8); }
@@ -570,9 +808,10 @@ function applyHash(){
     if(k==='dodge'){ startDodge(); B.box=B.target.slice(); } }
   if(k==='boss'){ startBattle(LEAFY_BOSS,null); startDodge(); B.box=B.target.slice(); }
   if(k==='ending'){ state='ending'; endKind='quest'; endT=2; }
+  if(k==='dungeon'){ LEAFY.questGiven=true; enterDungeon(); dialog=null; if(v) enterRoom(+v,'south'); dialog=null; }
 }
 const waitLoad=setInterval(()=>{ if(loaded>=names.length){ clearInterval(waitLoad); applyHash(); } },20);
-window.__G={get endKind(){return endKind},get state(){return state},P,get B(){return B},get enemies(){return enemies},LEAFY,get dialog(){return dialog}};
+window.__G={get D(){return D},get stones(){return stones},get dun1Done(){return dun1Done},ENT,enterRoom:(i,f)=>enterRoom(i,f),get endKind(){return endKind},get state(){return state},P,get B(){return B},get enemies(){return enemies},LEAFY,get dialog(){return dialog}};
 requestAnimationFrame(frame);
 </script>
 </body>
