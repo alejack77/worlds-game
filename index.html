@@ -224,10 +224,10 @@ function drawArea(){ const a=AREAS[curA-1], k=curA;
   g.drawImage(IMG['ar'+k+'g'],cam.x,cam.y,VW,VH,0,0,VW,VH);
   const list=[], at=IMG['ar'+k+'a'];
   for(const o of a.objects){ const x=o.x-o.ax-cam.x, y=o.y-o.ay-cam.y; if(x>VW||y>VH||x+o.w<0||y+o.h<0) continue; list.push([o.y,()=>g.drawImage(at,o.sx,o.sy,o.w,o.h,x,y,o.w,o.h)]); }
-  for(const n of areaNpcs()) list.push([n.y,()=>drawAreaNpc(n)]);
+  for(const n of areaNpcs()) if(n.type!=='save') list.push([n.y,()=>drawAreaNpc(n)]);
   DUNS.forEach((d,i)=>{ if(d.area===k) list.push([d.ent.y,()=>drawEntrance(d,i)]); });
   list.push([P.y,()=>sprite('knight',P.frame,P.dir,P.x-cam.x,P.y-cam.y)]);
-  list.sort((p,q)=>p[0]-q[0]); list.forEach(l=>l[1]());
+  list.sort((p,q)=>p[0]-q[0]); list.forEach(l=>l[1]()); for(const n of areaNpcs()) if(n.type==='save') drawSaveStar(n);   // save stars always on top
   drawExitSign(MW-34,a.east-14,k===1?AREA_NAMES[0]:AREA_NAMES[k-1],1);
   if(a.west!==null&&a.west!==undefined) drawExitSign(34,a.west-14,AREA_NAMES[k+1],-1);
   if(a.final){ txt('PAPER CO.',480-cam.x,18-cam.y,'#222',12,'center'); txt('THE BIG PAPER',480-cam.x,8-cam.y+2,'#c22',6,'center'); }
@@ -1065,7 +1065,7 @@ function freeSpot(k,x,y){ const col=AREA_COL[k]; for(let r=0;r<60;r+=4) for(let 
 HOME_NPCS.push({type:'save',x:150,y:368,noBlock:true});
 AREAS.forEach((a,i)=>{ const k=i+1;
   if(a.final){ AREA_NPCS[k]=[{type:'bigpaper',x:a.ent.x,y:a.ent.y,hide:()=>bpBeaten},{type:'gbossnpc',x:a.glubbb.x,y:a.glubbb.y,li:0,hide:()=>!glubbbossBeaten},{type:'save',x:a.save.x,y:a.save.y,noBlock:true}]; }
-  else { const s=freeSpot(k,a.w-96,a.east-26); AREA_NPCS[k].push({type:'save',x:s.x,y:s.y,noBlock:true}); } });
+  else { AREA_NPCS[k].push({type:'save',x:a.w-70,y:a.east-2,noBlock:true}); } });
 LEAFY.hide=()=>leafyToFactory;
 function drawSaveStar(n){ const x=Math.round(n.x-cam.x), y=Math.round(n.y-cam.y)-10+Math.round(Math.sin(T*3)*1.5), p=0.5+0.5*Math.sin(T*5);
   g.fillStyle=`rgba(255,240,120,${0.18+0.15*p})`; g.fillRect(x-7,y-7,15,15);
