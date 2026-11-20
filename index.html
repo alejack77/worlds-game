@@ -145,6 +145,7 @@ function txt(s,x,y,col='#fff',size=10,align='left'){
   g.font=`bold ${size}px "Courier New",monospace`; g.textAlign=align; g.textBaseline='top';
   g.fillStyle='#000'; g.fillText(s,x+1,y+1); g.fillStyle=col; g.fillText(s,x,y);
 }
+function txtFit(s,x,y,col,size,maxw){ let z=size; for(;z>6;z--){ g.font=`bold ${z}px "Courier New",monospace`; if(g.measureText(s).width<=maxw) break; } txt(s,x,y+Math.floor((size-z)/2),col,z); }
 function wrap(s,maxw,size=10){ g.font=`bold ${size}px "Courier New",monospace`; const out=[]; s.split('\n').forEach(par=>{let line='';
   par.split(' ').forEach(w=>{const t=line?line+' '+w:w; if(g.measureText(t).width>maxw && line){out.push(line);line=w;} else line=t;}); out.push(line);}); return out; }
 function box(x,y,w,h){ g.fillStyle='#000'; g.fillRect(x,y,w,h); g.strokeStyle='#fff'; g.lineWidth=2; g.strokeRect(x+1,y+1,w-2,h-2); }
@@ -167,7 +168,7 @@ const VILLAGER_LINES=[
  ["* Don't stop walking. The whistle blows soon.","* If we're late, they take our weekend."],
  ["* There's a part of the factory nobody goes into.","* The far side. All locked up with chains.","* Sometimes I hear something BIG moving in there..."],
  ["* Leafy is the only one who's nice to us.","* He says a hero will come and free the leaves.","* ...Is that you?"],
- ["* They say the eight LEAVES OF DESTINY could stop the company.","* Pink, white, blue, light blue, red, yellow, green... and one more white.","* But nobody's brave enough to look for them."]];
+ ["* They say the eight LEAVES OF DESTINY could stop the company.","* Pink, black, blue, light blue, red, yellow, green... and white.","* But nobody's brave enough to look for them."]];
 const VKINDS=['down','carry','fist','sad','carry','down','fist','sad'];   // factory-leaf styles per villager
 const npcs=DATA.villagers.map((v,i)=>{ const kind=VKINDS[i%VKINDS.length];
   return {type:'vill',x:v.x,y:v.y,bx:v.x,kind,walk:(kind==='carry'||kind==='sad'),flip:false,lines:VILLAGER_LINES[i%VILLAGER_LINES.length],ph:i*0.7}; });
@@ -335,12 +336,12 @@ function talk(n){ if(n.type==='save') return talkSave(); if(n.type==='bigpaper')
   else if(n.type==='leafy'){ owFace=['leafy',0,0];
     if(n.questGiven&&stones>=8){ say(["* Leafy: ALL EIGHT LEAVES! You did it, The One!","* Leafy: Now the last step. The boss of the paper company... THE BIG PAPER.","* Leafy: His factory is far WEST, past the GREAT OAK GROVE.","* Leafy: Go! Beat him and the leaves are free! I'll be... right behind you. Heh."],()=>{ owFace=null; leafyToFactory=true; }); }
     else if(n.questGiven&&stones>0){ const nd=nextDun(); say([`* Leafy: ${stones} of the 8 LEAVES OF DESTINY! You're amazing!`,`* Leafy: The next one, the ${leafName(DUNS[nd].leaf)}, is in ${DUNS[nd].title}.`,`* Leafy: It's ${DUNS[nd].hint}. Follow the arrow!`],()=>owFace=null); }
-    else if(n.questGiven){ say(["* Leafy: DUNGEON 1 is at the far EAST end of the path. Follow the arrow!","* Leafy: Pink, white, blue, light blue, red, yellow, green... and the last white.","* Leafy: The leaves are counting on you."],()=>owFace=null); }
+    else if(n.questGiven){ say(["* Leafy: DUNGEON 1 is at the far EAST end of the path. Follow the arrow!","* Leafy: Pink, black, blue, light blue, red, yellow, green... and the last one, white.","* Leafy: The leaves are counting on you."],()=>owFace=null); }
     else say(["* Leafy: Oh! Hello! You must be The One!","* Leafy: I'm Leafy. Welcome to our forest.",
       "* Leafy: ...It used to be a happy place.","* Leafy: But the PAPER COMPANY built a factory here.",
       "* Leafy: They force all the leaves to work there, making paper. Day and night.",
       "* Leafy: There's only one way to stop them...","* Leafy: The eight LEAVES OF DESTINY.",
-      "* Leafy: PINK. WHITE. BLUE. LIGHT BLUE.","* Leafy: RED. YELLOW. GREEN. And the last one... WHITE.",
+      "* Leafy: PINK. BLACK. BLUE. LIGHT BLUE.","* Leafy: RED. YELLOW. GREEN. And the last one... WHITE.",
       "* Leafy: Each one is hidden deep in one of EIGHT dungeons.","* Leafy: Please, The One... collect all eight leaves for us!",
       "* Leafy: The first one, the PINK LEAF OF DESTINY, is in DUNGEON 1.","* Leafy: It's a cave with a pink glow at the far EAST end of the path.","* Leafy: Just follow the path to the right! I'll mark it for you.","* Leafy: Careful... wild monsters jump out when you walk through the forest!",
       "* Leafy: I believe in you!"],()=>{ owFace=null; n.questGiven=true; state='ending'; endT=0; endKind='quest'; });
@@ -465,7 +466,7 @@ const SHOP_TALK=[["* SPROUT: Hi hi! I'm Sprout, the only leaf the factory forgot
 function drawMenu(){ if(!MENU) return; const L=menuList(), M=MENU;
   if(M.kind==='map'){ drawGlubbbMap(); return; }
   if(M.kind==='inv'){ box(20,30,190,26+L.length*13); txt('ITEMS',30,36,'#ff0',10);
-    L.forEach((l,i)=>{ txt(l,46,52+i*13,'#fff',10); if(i===M.sel) drawHeart(36,58+i*13); });
+    L.forEach((l,i)=>{ txtFit(l,46,52+i*13,'#fff',10,158); if(i===M.sel) drawHeart(36,58+i*13); });
     box(216,30,166,92); txt(`HP ${P.hp}/${P.max}`,226,38,'#ff6',10); txt(`GOLD ${P.gold}G`,226,54,'#ffd23a',10); txt(`LEAVES ${stones}/8`,226,70,'#bfe86a',10);
     const gr=invGroups(); const dsc=gr[M.sel]?ITEMS[gr[M.sel][0]].desc:(P.keys[M.sel-gr.length]?KEYITEMS[P.keys[M.sel-gr.length]].desc:''); wrap(dsc,150,8).forEach((l,i)=>txt(l,226,88+i*10,'#ccc',8));
     txt(IS_TOUCH?'A: use   B: close':'Z: use   X: close',200,226,'#aaa',8,'center'); return; }
@@ -480,19 +481,21 @@ function drawMenu(){ if(!MENU) return; const L=menuList(), M=MENU;
 
 // ======================= LEAVES OF DESTINY + DUNGEON ENTRANCES (v2) =======================
 // The 8 Leaves of Destiny. Names/colours live ONLY here so they are easy to change.
-// (Slot 2 stays White for now; the 8th leaf is White too, per Alejandro.)
-const LEAVES=[{name:'Pink',col:'#ff78c8'},{name:'White',col:'#f0f4ff'},{name:'Blue',col:'#325ae6'},{name:'Light Blue',col:'#78d2ff'},
+// Slot 2 is BLACK (Alejandro's pick); the 8th leaf is White.
+const LEAVES=[{name:'Pink',col:'#ff78c8'},{name:'Black',col:'#16121c',rim:'#5a4a70',hi:'#8a78a8'},{name:'Blue',col:'#325ae6'},{name:'Light Blue',col:'#78d2ff'},
   {name:'Red',col:'#e12832'},{name:'Yellow',col:'#ffdc28'},{name:'Green',col:'#3cc850'},{name:'White',col:'#ffffff'}];
 const STONE_COLS=LEAVES.map(l=>l.col);
+const LEAF_RIM={}, LEAF_HI={}; const leafShow=c=>LEAF_RIM[c]?'#a08ac8':c; LEAVES.forEach(l=>{ if(l.rim){ LEAF_RIM[l.col]=l.rim; LEAF_HI[l.col]=l.hi; } });   // the black leaf is SHOWN in purple-grey for text and glows
 const leavesGot=LEAVES.map(()=>false);
 let stones=0, dun1Done=false;            // stones = how many Leaves of Destiny you have (kept name for old code/tests)
 const dunDone=LEAVES.map(()=>false);
 for(let i=0;i<LEAVES.length;i++) KEYITEMS['leaf'+i]={name:`${LEAVES[i].name} Leaf of Destiny`,desc:`A KEY ITEM. The ${LEAVES[i].name.toUpperCase()} LEAF OF DESTINY (${i+1} of 8). It hums with old forest magic.`};
 function leafName(i){ return LEAVES[i].name.toUpperCase()+' LEAF OF DESTINY'; }
 const LEAF_PIX=["00011","00111","01111","11110","11100","10000"];
-function drawLeafIcon(x,y,col,s=1){ g.fillStyle='#000'; for(let j=0;j<6;j++)for(let i=0;i<5;i++) if(LEAF_PIX[j][i]==='1') g.fillRect(x+(i-1)*s,y+(j-1)*s,3*s,3*s);
+function drawLeafIcon(x,y,col,s=1){ g.fillStyle=LEAF_RIM[col]||'#000'; for(let j=0;j<6;j++)for(let i=0;i<5;i++) if(LEAF_PIX[j][i]==='1') g.fillRect(x+(i-1)*s,y+(j-1)*s,3*s,3*s);
   g.fillStyle=col; for(let j=0;j<6;j++)for(let i=0;i<5;i++) if(LEAF_PIX[j][i]==='1') g.fillRect(x+i*s,y+j*s,s,s);
-  if(s>1){ g.fillStyle='rgba(255,255,255,.5)'; g.fillRect(x+3*s,y+s,s,s); } }
+  if(LEAF_HI[col]){ g.fillStyle=LEAF_HI[col]; g.fillRect(x+3*s,y+s,s,s); g.fillRect(x+2*s,y+2*s,s,s); g.fillRect(x+1*s,y+3*s,s,s); }
+  else if(s>1){ g.fillStyle='rgba(255,255,255,.5)'; g.fillRect(x+3*s,y+s,s,s); } }
 // 8 dungeons, one per Leaf of Destiny. boss = key into BOSSES (defined with the battle code).
 const DUNS=[
  {title:'DUNGEON 1',name:'Thorn Cave',ent:{x:1240,y:334},leaf:0,lv:1,boss:'thornking',hint:'a cave with a pink glow at the far EAST end of the path'},
@@ -522,10 +525,10 @@ function makeEntrance(col,dark){ const c=document.createElement('canvas'); c.wid
   return c; }
 function dunLocked(i){ return i>0 && (!dunDone[i-1] || !LEAFY.questGiven); }
 function drawEntrance(d,i){
-  const lock=dunLocked(i), key=i+(lock?'L':''); if(!ENT_IMGS[key]) ENT_IMGS[key]=makeEntrance(LEAVES[d.leaf].col,lock);
+  const lock=dunLocked(i), key=i+(lock?'L':''); if(!ENT_IMGS[key]) ENT_IMGS[key]=makeEntrance(leafShow(LEAVES[d.leaf].col),lock);
   const x=Math.round(d.ent.x-32-cam.x), y=Math.round(d.ent.y-48-cam.y); if(x>VW+40||x<-100||y>VH||y<-60) return;
   g.drawImage(ENT_IMGS[key],x,y);
-  if(!dunDone[i]&&!lock){ const a=0.22+0.18*Math.sin(T*4); g.fillStyle=hexA(LEAVES[d.leaf].col,a); g.fillRect(x+23,y+16,18,32); }
+  if(!dunDone[i]&&!lock){ const a=0.22+0.18*Math.sin(T*4); g.fillStyle=hexA(leafShow(LEAVES[d.leaf].col),a); g.fillRect(x+23,y+16,18,32); }
   g.fillStyle='#5a3a1e'; g.fillRect(x-14,y+30,2,18); g.fillStyle='#1a1008'; g.fillRect(x-30,y+20,34,12); g.fillStyle='#9a6a3a'; g.fillRect(x-29,y+21,32,10);
   txt(d.title,x-13,y+23,dunDone[i]?'#bfe86a':lock?'#aaa':'#ffe',6,'center'); }
 function hexA(h,a){ const n=parseInt(h.slice(1),16); return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`; }
@@ -761,12 +764,12 @@ function drawDungeon(){
       g.fillStyle='#9a94a6'; g.fillRect(X+1,Y-3,14,4); g.fillStyle='#55505e'; g.fillRect(X+3,Y+5,10,1); g.fillRect(X+3,Y+9,10,1); if(on){ g.fillStyle=col; g.fillRect(X+6,Y-2,4,2);} }]); }
   if(r.boss){ const bx=r.boss[0]*16+8, by=r.boss[1]*16+14, cfg=bossCfg(r);
     if(!st.bossDone) list.push([by,()=>drawBossOW(cfg,bx,by)]);
-    else if(!st.stoneTaken&&!r.secretBoss) list.push([by,()=>{ const y=by-16+Math.round(Math.sin(T*3)*2); g.fillStyle=hexA(col,0.25+0.15*Math.sin(T*5)); g.fillRect(bx-10,y-8,21,21); drawLeafIcon(bx-5,y-1,col,2); }]); }
+    else if(!st.stoneTaken&&!r.secretBoss) list.push([by,()=>{ const y=by-16+Math.round(Math.sin(T*3)*2); g.fillStyle=hexA(LEAF_RIM[col]?'#8a6ab8':col,0.25+0.15*Math.sin(T*5)); g.fillRect(bx-10,y-8,21,21); drawLeafIcon(bx-5,y-1,col,2); }]); }
   list.push([P.y,()=>sprite('knight',P.frame,P.dir,P.x,P.y)]);
   list.sort((a,b)=>a[0]-b[0]); list.forEach(l=>l[1]());
   g.fillStyle='rgba(0,0,0,.25)'; g.fillRect(0,0,VW,6); g.fillRect(0,VH-6,VW,6);
   txt(`HP ${P.hp}/${P.max}`,6,5,'#ff6'); drawStonesHUD(); txt(DUNS[D.d].title+' - '+r.name,VW-6,5,'#ffe',8,'right');
-  if(D.flashT>0){ D.flashT-=1/60; g.fillStyle=hexA(col,Math.max(0,D.flashT)*0.5); g.fillRect(0,0,VW,VH); }
+  if(D.flashT>0){ D.flashT-=1/60; g.fillStyle=hexA(LEAF_RIM[col]?'#8a6ab8':col,Math.max(0,D.flashT)*0.5); g.fillRect(0,0,VW,VH); }
   drawEnc(P.x,P.y); drawDialog(12,166,376,66,owFace); drawMenu();
 }
 
@@ -965,14 +968,14 @@ THORN_KING.check=THORN_KING.check.replace('pink stone','PINK LEAF OF DESTINY'); 
 THORN_KING.spareLines=THORN_KING.spareLines.map(t=>t.replace('pink stone','pink leaf')); THORN_KING.thresholds[1][1][0]=THORN_KING.thresholds[1][1][0].replace('this stone','this leaf');
 const BOSSES={thornking:THORN_KING,
  dustwing:mkBoss({id:'dustwing',name:'Duchess Dustwing',sheet:'b_dustwing',hp:75,atk:3,col:'#f4f4ff',attacks:['g_spiral','g_drift','g_beam','g_zigzag'],rage:'g_rage',rageMix:['spiral','drift'],
-  speech:['* DUCHESS DUSTWING: Oh! A visitor in my nest. How... DUSTY of you.','* DUCHESS DUSTWING: My wings are as white as fresh paper. The factory LOVES them.','* DUCHESS DUSTWING: The WHITE LEAF OF DESTINY is mine. Now... dance with me!'],
+  speech:['* DUCHESS DUSTWING: Oh! A visitor in my nest. How... DUSTY of you.','* DUCHESS DUSTWING: My wings are as white as fresh paper. The factory LOVES them.','* DUCHESS DUSTWING: The BLACK LEAF OF DESTINY is mine. Now... dance with me!'],
   intros:['* Duchess Dustwing flutters down in a cloud of dust!'],check:'* DUCHESS DUSTWING - ATK 3 DEF 3\n* A paper-white moth. Vain, elegant, and dusty.',
   acts:[['Compliment wings','* You say her wings are the most beautiful in the forest. She glows.','* DUSTWING: Finally, someone with TASTE.'],['Turn off light','* You hide the lamp. She calms down a little.'],['Dance','* You do a little twirl. She twirls too!','* DUSTWING: ...You are a terrible dancer. I love it.']],
   hurt:['* DUSTWING: My DUST! You ruined my dust!','* DUSTWING: How RUDE!'],low:['* Duchess Dustwing\'s wings are drooping.'],
   thresholds:[[0.5,['* DUSTWING: The factory said nobody would come this far...']],[0.3,['* DUSTWING: ENOUGH! A FULL BLIZZARD OF DUST!']]],
   taunts:['Dustwing: Twirl, little knight, twirl!','Dustwing: Every speck of dust is a speck of ART.','Dustwing: The factory promised me a crystal lamp...','Dustwing: ...Nobody ever danced with me before.'],
-  spareLines:['* You spared DUCHESS DUSTWING.','* DUSTWING: You... danced with me. Nobody ever did.','* DUSTWING: Take the white leaf. Free the others for me.'],defeatLines:['* You defeated DUCHESS DUSTWING!','* She crumbles into a soft pile of white dust.'],
-  afterSpare:['* Dustwing flutters up into the dark, humming.','* Something white is glowing on the floor...'],afterWin:['* The dust settles.','* Something white is glowing on the floor...'],
+  spareLines:['* You spared DUCHESS DUSTWING.','* DUSTWING: You... danced with me. Nobody ever did.','* DUSTWING: Take the black leaf. Free the others for me.'],defeatLines:['* You defeated DUCHESS DUSTWING!','* She crumbles into a soft pile of white dust.'],
+  afterSpare:['* Dustwing flutters up into the dark, humming.','* Something dark is shimmering on the floor...'],afterWin:['* The dust settles.','* Something dark is shimmering on the floor...'],
   goldLine:'* You found 90 G in the dust!',spareGoldLine:'* Dustwing leaves you 70 G as thanks.'}),
  croaker:mkBoss({id:'croaker',name:'Old Croaker',sheet:'b_croaker',hp:85,atk:3,col:'#9ad8ff',attacks:['g_sweepline','g_rise','g_zigzag','g_ring'],rage:'g_rage',rageMix:['rise','sweepline'],
   speech:['* OLD CROAKER: CROOOOAK. Who splashes in MY pond?','* OLD CROAKER: The factory pays me in flies. Lots of flies.','* OLD CROAKER: You want the BLUE LEAF OF DESTINY? Hop to it... if you can!'],
@@ -1051,7 +1054,7 @@ const ULT_LEAFY={id:'ultleafy',name:'ULTIMATE LEAFY',dboss:true,ult:true,sheet:'
   defeatLines:['* You defeated ULTIMATE LEAFY!','* The eight leaves burst out of him in a flash of light.','* LEAFY: No... my power... my forest...']};
 // ===================== ULTIMATE LEAFY v2 (Omega Flowey / Sans difficulty) =====================
 // sprite: 192x224 frames, origin (96,221). Projectiles from /workspace/game/ultimate_leafy_v2 only.
-const UL_LC=LEAVES.map(l=>l.col);           // the 8 Leaves of Destiny colours (pink, white, blue, light blue, red, yellow, green, white)
+const UL_LC=LEAVES.map(l=>l.rim?'#8a6ab8':l.col);   // the 8 Leaves of Destiny colours (pink, black->shown purple-black so it reads, blue, light blue, red, yellow, green, white)
 // ======================= FINAL ZONE (Paper Factory), THE BIG PAPER, Glubbboss NPC, save stars =======================
 let PEND_SAY=null; let glubbbossBeaten=false, bpBeaten=false, leafyToFactory=false;
 const FINAL_A=AREAS.findIndex(a=>a.final)+1;   // area index of the PAPER FACTORY (8)
@@ -1640,8 +1643,8 @@ function drawEnding(){
     txt('Find the 8 Leaves of Destiny. Free the leaves.',200,178,'#fff',10,'center');
     txt('First stop: DUNGEON 1, east end of the path  →',200,196,'#ffd0ee',9,'center');
     if(endT>1.5&&Math.floor(T*2)%2) txt(IS_TOUCH?'tap to continue':'press Z to continue',200,222,'#ccc',10,'center'); return; }
-  if(endKind==='leaf'||endKind==='stone1'){ const li=endLeaf||0, col=LEAVES[li].col; txt(leafName(li)+' OBTAINED!',200,30,col,li===3?13:14,'center');
-    const y=88+Math.round(Math.sin(T*3)*3); g.fillStyle=hexA(col,0.2+0.1*Math.sin(T*5)); g.fillRect(176,y-22,48,48); drawLeafIcon(185,y-12,col,6);
+  if(endKind==='leaf'||endKind==='stone1'){ const li=endLeaf||0, col=LEAVES[li].col; txt(leafName(li)+' OBTAINED!',200,30,leafShow(col),li===3?13:14,'center');
+    const y=88+Math.round(Math.sin(T*3)*3); g.fillStyle=hexA(LEAF_RIM[col]?'#8a6ab8':col,0.2+0.1*Math.sin(T*5)); g.fillRect(176,y-22,48,48); drawLeafIcon(185,y-12,col,6);
     LEAVES.forEach((l,i)=>drawLeafIcon(118+i*22,140,leavesGot[i]?l.col:'#333',2));
     txt(`Leaves of Destiny: ${stones}/8`,200,164,'#fff',10,'center');
     txt(stones>=8?'ALL EIGHT! Go back to Leafy...':`${8-stones} leaves left. Talk to Leafy for the next dungeon!`,200,190,'#ff0',9,'center');
