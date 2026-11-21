@@ -316,7 +316,7 @@ function updateOverworld(dt){
     if(d.msgCool) break;
     const back=()=>{P.y=d.ent.y+16; d.msgCool=false;};
     if(dunLocked(i)){ d.msgCool=true; say(LEAFY.questGiven?[`* ${d.title} is sealed by thick roots.`,`* (Get the ${leafName(DUNS[i-1].leaf)} first.)`]:[`* ${d.title} is sealed by thick roots.`,'* (Maybe someone in the forest knows about this place...)'],back); }
-    else if(dunDone[i]&&!(d.secret&&hasAllGlubbb()&&!(DSTATE[i]&&DSTATE[i].rooms.some((st,k)=>d.rooms[k].secretBoss&&st.bossDone)))){ d.msgCool=true; say([`* ${d.title} is quiet now. You already have the ${leafName(d.leaf)}.`],back); }
+    else if(dunDone[i]&&!(d.secret&&hasAllGlubbb()&&!(DSTATE[i]&&DSTATE[i].rooms.some((st,k)=>st&&d.rooms[k]&&d.rooms[k].secretBoss&&st.bossDone)))){ d.msgCool=true; say([`* ${d.title} is quiet now. You already have the ${leafName(d.leaf)}.`],back); }
     else enterDungeon(i);
     return; }
   // random encounters while walking in the wild (towns, shop and safe spots have none)
@@ -691,26 +691,46 @@ DUNS.forEach((d,i)=>{ if(!d.rooms.some(r=>r.puz)) addPuzzleRooms(d.rooms,d.lv); 
 
 let D=null; const DSTATE={};
 function DR(){ return DUNS[D.d].rooms; }
-function newDungeon(di){ return {d:di,room:0,rooms:DUNS[di].rooms.map(r=>{ const st={solved:false,bossDone:false,stoneTaken:false,blocks:[],plates:[]};
+// ---- per-room puzzle state. Every access goes through RS(), which creates a missing state on the spot (v5.1 fix) ----
+function roomKey(r){ return r.puz||r.name; }
+function freshRoomState(di,i){ const r=DUNS[di].rooms[i], st={k:roomKey(r),solved:false,bossDone:false,stoneTaken:false,blocks:[],plates:[]};
   r.map.forEach((row,y)=>{ for(let x=0;x<25;x++){ if(row[x]==='B') st.blocks.push([x,y]); if(row[x]==='P') st.plates.push([x,y]); } });
-  st.b0=st.blocks.map(b=>b.slice()); if(!st.plates.length&&r.kind!=='sw'&&r.kind!=='timed') st.solved=true; return st; }), ow:{x:P.x,y:P.y}}; }
+  st.b0=st.blocks.map(b=>b.slice()); if(!st.plates.length&&r.kind!=='sw'&&r.kind!=='timed') st.solved=true; return st; }
+function newDungeon(di){ return {d:di,room:0,rooms:DUNS[di].rooms.map((r,i)=>freshRoomState(di,i)),ow:{x:P.x,y:P.y}}; }
+// make a dungeon state match the current room list. v4 saves had no puzzle rooms, so their room states sat at other indexes
+// (D7: the old Secret Lair state landed on the Root Block Maze, and the next room had no state at all -> "st.plates" crash)
+function fixDungeonState(di,Dd){ if(!Dd) return Dd; const rooms=DUNS[di].rooms; if(!Array.isArray(Dd.rooms)) Dd.rooms=[];
+  const keyed=Dd.rooms.length&&Dd.rooms.every(st=>st&&st.k);
+  if(!keyed&&Dd.rooms.length){ const legacy=[]; rooms.forEach((r,i)=>{ if(!r.puz) legacy.push(i); });
+    if(Dd.rooms.length===legacy.length&&legacy.length<rooms.length){ const out=rooms.map((r,i)=>freshRoomState(di,i));
+      legacy.forEach((ni,oi)=>{ const st=Dd.rooms[oi]; if(st){ st.k=roomKey(rooms[ni]); out[ni]=st; } });
+      Dd.room=legacy[Dd.room]!==undefined?legacy[Dd.room]:0; Dd.rooms=out; }
+    else Dd.rooms.forEach((st,i)=>{ if(st&&rooms[i]) st.k=roomKey(rooms[i]); }); }
+  Dd.rooms.length=Math.min(Dd.rooms.length,rooms.length);
+  rooms.forEach((r,i)=>{ let st=Dd.rooms[i];
+    const nP=r.map.reduce((a,row)=>a+row.split('P').length-1,0), nB=r.map.reduce((a,row)=>a+row.split('B').length-1,0);
+    if(!st||typeof st!=='object'||st.k!==roomKey(r)||!Array.isArray(st.plates)||!Array.isArray(st.blocks)||st.plates.length!==nP||st.blocks.length!==nB){ Dd.rooms[i]=freshRoomState(di,i); if(st&&st.seen) Dd.rooms[i].seen=true; return; }
+    if(!Array.isArray(st.b0)||st.b0.length!==nB) st.b0=freshRoomState(di,i).b0; });
+  if(!(Dd.room>=0&&Dd.room<rooms.length)) Dd.room=0; Dd.slide=null; return Dd; }
+function RS(i){ if(!D) return null; if(i===undefined) i=D.room; let st=D.rooms[i];
+  if(!st||!Array.isArray(st.plates)||!Array.isArray(st.blocks)){ fixDungeonState(D.d,D); st=D.rooms[i]||(D.rooms[i]=freshRoomState(D.d,i)); } return st; }
 function tileAt(tx,ty){ const m=DR()[D.room].map; if(ty<0||ty>=15||tx<0||tx>=25) return '#'; return m[ty][tx]; }
 function blockAt(st,tx,ty){ return st.blocks.findIndex(b=>b[0]===tx&&b[1]===ty); }
-function solidTile(tx,ty,forBlock){ const c=tileAt(tx,ty), st=D.rooms[D.room];
+function solidTile(tx,ty,forBlock){ const c=tileAt(tx,ty), st=RS();
   if(c==='#'||c==='W') return true; if(c==='G'&&!st.solved) return true; if(c==='S'&&!hasAllGlubbb()) return true;
   if(forBlock&&(c==='D'||c==='E'||c==='G'||c==='S')) return true;
   if(blockAt(st,tx,ty)>=0) return true; return false; }
 function dBlocked(x,y){ const x0=Math.floor((x-6)/16), x1=Math.floor((x+5)/16), y0=Math.floor((y-4)/16), y1=Math.floor((y+1)/16);
   for(let ty=y0;ty<=y1;ty++) for(let tx=x0;tx<=x1;tx++) if(solidTile(tx,ty)) return [tx,ty]; return null; }
 function checkSolved(st){ return st.plates.every(p=>blockAt(st,p[0],p[1])>=0); }
-function enterRoom(i,from){ D.room=i; const st=D.rooms[i], r=DR()[i]; D.bossCool=false;   // FIX: a lost boss fight used to leave bossCool stuck on, so that boss could never be met again
+function enterRoom(i,from){ if(!(i>=0&&i<DR().length)){ if(i<0) return exitDungeon(); i=DR().length-1; } D.room=i; const st=RS(i), r=DR()[i]; D.bossCool=false;   // FIX: a lost boss fight used to leave bossCool stuck on, so that boss could never be met again
   if(st.plates.length&&!st.solved) st.blocks=st.b0.map(b=>b.slice());   // unsolved puzzle resets when you come back
   puzzleEnter(st,r); if(D) D.slide=null;
   if(from==='south'){ P.x=12*16+8; P.y=13*16+10; P.dir=3; } else if(from==='secret'){ P.x=2*16+8; P.y=7*16+12; P.dir=2; } else { P.x=12*16+8; P.y=1*16+14; P.dir=0; }
   if(!st.seen){ st.seen=true; say([r.hint]); owFace=null; }
   encGrace=1.2; RCACHE=null; }
-function enterDungeon(i=0){ D=DSTATE[i]||(DSTATE[i]=newDungeon(i)); D.ow={x:P.x,y:P.y}; state='dungeon'; SFX.ok(); const r0=DR()[0];
-  D.room=0; enterRoom(0,'south'); if(!D.entered){ D.entered=true; say([`* You step into ${DUNS[i].title}: ${DUNS[i].name.toUpperCase()}.`,'* '+r0.hint.slice(2)]); } else dialog=null; D.rooms[0].seen=true; }
+function enterDungeon(i=0){ D=fixDungeonState(i,DSTATE[i]||(DSTATE[i]=newDungeon(i))); D.ow={x:P.x,y:P.y}; state='dungeon'; SFX.ok(); const r0=DR()[0];
+  D.room=0; enterRoom(0,'south'); if(!D.entered){ D.entered=true; say([`* You step into ${DUNS[i].title}: ${DUNS[i].name.toUpperCase()}.`,'* '+r0.hint.slice(2)]); } else dialog=null; RS(0).seen=true; }
 function exitDungeon(){ if(CP&&CP.kind==='dun') CP=cpOutside(CP.d); setArea(DUNS[D.d].area); const e=DUNS[D.d].ent; P.x=e.x; P.y=e.y+14; P.dir=0; state='overworld'; D=null; encGrace=1.5; }
 let RCACHE=null;
 function roomCanvas(){ if(RCACHE&&RCACHE.key===D.d+'_'+D.room) return RCACHE.c;
@@ -736,7 +756,7 @@ function updateDungeon(dt){
   if(MENU){ updateMenu(); P.frame=0; return; }
   if(pressed.b){ openInv(); return; }
   encGrace=Math.max(0,encGrace-dt);
-  const st=D.rooms[D.room], r=DR()[D.room];
+  const st=RS(), r=DR()[D.room];
   let dx=(held.right?1:0)-(held.left?1:0), dy=(held.down?1:0)-(held.up?1:0); const sp=80; const ox=P.x, oy=P.y;
   if(D.slide){ iceUpdate(dt); P.frame=0; dx=0; dy=0; }
   else if(dx||dy){ if(dx&&dy){dx*=0.7071;dy*=0.7071;}
@@ -750,9 +770,10 @@ function updateDungeon(dt){
   // doors
   const ftx=Math.floor(P.x/16), fty=Math.floor((P.y-2)/16), here=tileAt(ftx,fty);
   if(r.kind) puzzleStep(st,r,here,ftx,fty,dt);
+  if(here==='P'&&st.plates.length&&!st.solved&&blockAt(st,ftx,fty)<0&&!st.plateTip){ st.plateTip=true; D.toast={t:3.5,msg:'Push a BLOCK onto each plate!'}; beep(300,0.06,'triangle',0.05); }
   if(here==='E'){ if(r.back!==undefined) enterRoom(r.back,'secret'); else if(D.room===0) exitDungeon(); else enterRoom(D.room-1,'north'); return; }
-  if(here==='D'||(here==='G'&&st.solved)){ enterRoom(D.room+1,'south'); return; }
-  if(here==='S'&&hasAllGlubbb()){ enterRoom(DR().findIndex(q=>q.secretBoss),'south'); return; }
+  if(here==='D'||(here==='G'&&st.solved)){ if(D.room+1<DR().length) enterRoom(D.room+1,'south'); else exitDungeon(); return; }
+  if(here==='S'&&hasAllGlubbb()&&DR().some(q=>q.secretBoss)){ enterRoom(DR().findIndex(q=>q.secretBoss),'south'); return; }
   if(r.map[7][0]==='S'&&!hasAllGlubbb()&&P.x<30&&P.y>5*16&&P.y<9*16&&st.sMsg!==glubbbCount()+1){ st.sMsg=glubbbCount()+1; say(glubbbCount()?['* The wall smells like glubbb. Something is missing...',`* (Glubbb's things: ${glubbbCount()}/${GLUBBB_ITEMS.length}. Find ALL of them.)`]:['* A drawing of a pear with a VERY long nose is scratched into the wall.','* Something is behind it... but you don\'t know the way in.','* (Maybe someone who draws pears could help?)']); }
   cpTouchDun();
   // random encounters (never in boss rooms)
@@ -767,7 +788,7 @@ function updateDungeon(dt){
       D.flashT=1.2; say([`* You got the ${leafName(li)}!`,`* It glows warm in your hands. (${stones}/8)`,...(D.bossFate==='spare'&&cfg.byeSpare?[cfg.byeSpare]:cfg.byeWin?[cfg.byeWin]:[]),stones>=8?'* ALL EIGHT LEAVES OF DESTINY!':'* The way out is open. Leafy will be so happy!'],
         ()=>{ exitDungeon(); if(stones>=8&&!leafyToFactory){ leafyToFactory=true; PEND_SAY=factoryLines(); } autoSave(); state='ending'; endT=0; endKind='leaf'; endLeaf=li; }); } }
 }
-function tryPush(hit,sx,sy,dt){ const st=D.rooms[D.room]; if(!st.plates.length||st.solved) return;
+function tryPush(hit,sx,sy,dt){ const st=RS(); if(!st.plates.length||st.solved) return;
   const bi=blockAt(st,hit[0],hit[1]); if(bi<0) return; if(sx&&sy) return;
   D.push=(D.push||0)+dt; if(D.push<0.18) return; D.push=0;
   const b=st.blocks[bi], nx=b[0]+sx, ny=b[1]+sy; if(solidTile(nx,ny,true)) return;
@@ -779,13 +800,15 @@ function fanfare(){ [523,659,784,1046,784,1046,1318].forEach((f,i)=>setTimeout((
 function drawBossOW(cfg,bx,by){ if(cfg.fw===128) sprite(cfg.sheet,Math.floor(T*4)%4,0,bx,by,0.5,128,128,64,124); else sprite(cfg.sheet,Math.floor(T*4)%4,0,bx,by,1); }
 function drawDungeon(){
   g.drawImage(roomCanvas(),0,0);
-  const st=D.rooms[D.room], r=DR()[D.room], m=r.map, col=LEAVES[DUNS[D.d].leaf].col;
+  const st=RS(), r=DR()[D.room], m=r.map, col=LEAVES[DUNS[D.d].leaf].col;
   for(let tx=0;tx<25;tx++) if(m[0][tx]==='G'){ const X=tx*16;
     if(!st.solved){ g.fillStyle='#3a2414'; g.fillRect(X,0,16,16); g.fillStyle='#7a4a24'; for(let k=1;k<16;k+=5) g.fillRect(X+k,0,3,16); g.fillStyle=col; g.fillRect(X+6,6,4,4); }
     else { g.fillStyle='#0c0a10'; g.fillRect(X,0,16,16); } }
   if(r.kind) drawPuzzleTiles(st,r);
+  else if(D.toast&&D.toast.t>0){ D.toast.t-=1/60; txt(D.toast.msg,200,150,'#ffe08a',10,'center'); }
   if(hasAllGlubbb()) for(let ty=0;ty<15;ty++) if(m[ty][0]==='S'){ g.fillStyle=`rgba(100,200,255,${0.3+0.2*Math.sin(T*6)})`; g.fillRect(0,ty*16,16,16); }
   const list=[];
+  { const ptx=Math.floor(P.x/16), pty=Math.floor((P.y-2)/16); if(!st.solved&&st.plates.some(p=>p[0]===ptx&&p[1]===pty)&&blockAt(st,ptx,pty)<0){ g.fillStyle=`rgba(255,240,140,${0.35+0.25*Math.sin(T*10)})`; g.fillRect(ptx*16+1,pty*16+1,14,14); } }   // plate lights up under your feet
   for(const b of st.blocks){ const X=b[0]*16, Y=b[1]*16, on=st.plates.some(p=>p[0]===b[0]&&p[1]===b[1]);
     list.push([Y+15,()=>{ g.fillStyle='#000'; g.fillRect(X,Y-4,16,20); g.fillStyle='#7a7484'; g.fillRect(X+1,Y-3,14,18);
       g.fillStyle='#9a94a6'; g.fillRect(X+1,Y-3,14,4); g.fillStyle='#55505e'; g.fillRect(X+3,Y+5,10,1); g.fillRect(X+3,Y+9,10,1); if(on){ g.fillStyle=col; g.fillRect(X+6,Y-2,4,2);} }]); }
@@ -857,8 +880,8 @@ function leaveBattle(){
   if(cfg.final1&&k!=='flee'){ startReveal(); return; }
   if(cfg.id==='glubbboss'&&k!=='flee') glubbbossBeaten=true;
   if(cfg.ult&&k!=='flee'){ B=null; unlockMC(); saveGame(); FIN={kind:k,t:0,stage:0}; state='finale'; return; }
-  if(cfg.dboss&&D){ D.rooms[D.room].bossDone=true; D.bossCool=false; B=null; state='dungeon'; encGrace=2; autoSave(); say(k==='spare'?cfg.afterSpare:cfg.afterWin); return; }
-  if(B.ent&&B.ent.k!==undefined&&D){ const st=D.rooms[D.room]; st.done=st.done||[]; if(k!=='flee') st.done[B.ent.k]=true; }
+  if(cfg.dboss&&D){ RS().bossDone=true; D.bossCool=false; B=null; state='dungeon'; encGrace=2; autoSave(); say(k==='spare'?cfg.afterSpare:cfg.afterWin); return; }
+  if(B.ent&&B.ent.k!==undefined&&D){ const st=RS(); st.done=st.done||[]; if(k!=='flee') st.done[B.ent.k]=true; }
   if(cfg.wave&&cfg.wave.length&&(k==='win'||k==='spare')){ const nx={...cfg.wave[0],wave:cfg.wave.slice(1),waveN:cfg.waveN+1,waveT:cfg.waveT}, rs=retState; B=null; state=rs; startBattle(nx,null); retState=rs; B.msg=[`* Another enemy jumps in! (${nx.waveN}/${nx.waveT})`]; return; }
   B=null; state=retState; encGrace=1.5; resetEnc();
 }
@@ -1765,7 +1788,7 @@ const DUN_CPS=DUNS.map((d,di)=>{ const bi=d.rooms.findIndex(r=>r.boss&&!r.secret
   return out; });
 function cpTouchDun(){ for(const c of DUN_CPS[D.d]) if(c.room===D.room&&Math.hypot(P.x-c.x,P.y-c.y)<16) setCP({id:c.id,kind:'dun',d:D.d,room:c.room,area:DUNS[D.d].area,x:c.rx,y:c.ry}); }
 function respawnCP(quiet){ const c=CP; B=null; ENC=null; MENU=null; dialog=null; owFace=null; REV=null; P.hp=P.max; encGrace=2; resetEnc();
-  if(c.kind==='dun'){ setArea(DUNS[c.d].area); D=DSTATE[c.d]||(DSTATE[c.d]=newDungeon(c.d)); D.entered=true; D.bossCool=false; state='dungeon';
+  if(c.kind==='dun'){ setArea(DUNS[c.d].area); D=fixDungeonState(c.d,DSTATE[c.d]||(DSTATE[c.d]=newDungeon(c.d))); D.entered=true; { const cc=DUN_CPS[c.d]&&DUN_CPS[c.d].find(q=>q.id===c.id); if(cc){ c.room=cc.room; c.x=cc.rx; c.y=cc.ry; } } D.bossCool=false; state='dungeon';
     enterRoom(c.room,'south'); dialog=null; P.x=c.x; P.y=c.y; P.dir=0; }
   else { D=null; setArea(c.area); P.x=c.x; P.y=c.y; P.dir=0; state='overworld'; spawnEnemies(true); }
   if(!quiet) say(['* You wake up next to the leaf-lantern.','* HP fully restored. (Checkpoint)']); }
@@ -1861,8 +1884,10 @@ function drawTPMenu(){ const L=tpList(), M=MENU; g.fillStyle='rgba(0,0,0,.6)'; g
   L.forEach((k,i)=>{ const y=y0+26+i*14; txt(AREA_NAMES[k]+(k===curA?'  (here)':''),104,y,k===curA?'#888':'#fff',10); if(i===M.sel) drawHeart(90,y+6); });
   txt(IS_TOUCH?'A: go   B: close':'Z: go   X: close',200,226,'#aaa',8,'center'); }
 function drawTPFX(){ if(TPFX<=0) return; TPFX=Math.max(0,TPFX-1/45); g.fillStyle=`rgba(180,255,230,${0.7*TPFX})`; g.fillRect(0,0,VW,VH); }
-function puzzleEnter(st,r){ if(st.solved) return; if(r.kind==='sw'){ st.on=[]; st.next=1; } if(r.kind==='timed'){ st.lit=[]; st.tm=0; } }
-function puzzleStep(st,r,here,tx,ty,dt){ if(st.solved) return; const key=tx+','+ty;
+function puzzleEnter(st,r){ if(!st||!r||st.solved) return; if(r.kind==='sw'){ st.on=[]; st.next=1; } if(r.kind==='timed'){ st.lit=[]; st.tm=0; } }
+function puzzleStep(st,r,here,tx,ty,dt){ if(!st||!r||st.solved) return; const key=tx+','+ty;
+  if(r.kind==='sw'){ if(!Array.isArray(st.on)) st.on=[]; if(typeof st.next!=='number') st.next=st.on.length+1; }
+  if(r.kind==='timed'){ if(!Array.isArray(st.lit)) st.lit=[]; if(typeof st.tm!=='number'||isNaN(st.tm)) st.tm=st.lit.length?r.time:0; }
   if(r.kind==='sw'){ if(!st.on){ st.on=[]; st.next=1; }
     if(/[1-5]/.test(here)){ if(st.lastT!==key){ st.lastT=key; const k=+here;
         if(!st.on.includes(k)){ if(k===st.next){ st.on.push(k); st.next++; beep(500+k*90,0.08,'triangle',0.06);
@@ -1873,7 +1898,7 @@ function puzzleStep(st,r,here,tx,ty,dt){ if(st.solved) return; const key=tx+','+
     if(here==='T'&&!st.lit.includes(key)){ if(!st.lit.length) st.tm=r.time; st.lit.push(key); beep(700+st.lit.length*80,0.07,'triangle',0.06);
       if(st.lit.length>=nT){ st.solved=true; SFX.win(); RCACHE=null; say(['* *CLICK*  Every plate is glowing at once!','* The gate to the north rumbles open!']); return; } }
     if(st.lit.length){ st.tm-=dt; if(st.tm<=0){ st.lit=[]; D.toast={t:1.8,msg:'Too slow! The plates go dark.'}; beep(110,0.25,'square',0.06); } } } }
-function drawPuzzleTiles(st,r){ const m=r.map;
+function drawPuzzleTiles(st,r){ if(!st||!r) return; const m=r.map;
   for(let ty=0;ty<15;ty++) for(let tx=0;tx<25;tx++){ const ch=m[ty][tx], X=tx*16, Y=ty*16;
     if(/[1-5]/.test(ch)){ const k=+ch, on=st.solved||(st.on&&st.on.includes(k)), s=r.sym[k-1];
       g.fillStyle='#000'; g.fillRect(X+1,Y+1,14,14); g.fillStyle=on?'#3a5a3a':'#3a3644'; g.fillRect(X+2,Y+2,12,12);
@@ -1909,7 +1934,7 @@ function applyState(s){
   stones=s.stones; dun1Done=s.dun1Done; s.leavesGot.forEach((v,i)=>leavesGot[i]=v); s.dunDone.forEach((v,i)=>dunDone[i]=v);
   hasGlubbbMap=s.hasGlubbbMap; hasFrostDrawing=s.hasFrostDrawing; glubbbossBeaten=s.glubbbossBeaten; leafyToFactory=s.leafyToFactory; bpBeaten=false; CP=s.cp||null; for(let k=0;k<TP_SEEN.length;k++) TP_SEEN[k]=s.tp?!!s.tp[k]:(k===0||!!s.dunDone[k-1]); if(CP&&CP.kind==='dun'&&!s.resumeCP) CP=cpOutside(CP.d);
   LEAFY.questGiven=s.leafy.questGiven; LEAFY.alive=s.leafy.alive; LEAFY.spared=s.leafy.spared;
-  for(const k of Object.keys(DSTATE)) delete DSTATE[k]; Object.assign(DSTATE,JSON.parse(JSON.stringify(s.dstate||{}))); for(const k in DSTATE) DSTATE[k].bossCool=false;
+  for(const k of Object.keys(DSTATE)) delete DSTATE[k]; Object.assign(DSTATE,JSON.parse(JSON.stringify(s.dstate||{}))); for(const k in DSTATE){ if(!DUNS[k]||!DSTATE[k]){ delete DSTATE[k]; continue; } fixDungeonState(+k,DSTATE[k]); DSTATE[k].bossCool=false; }
   if(s.mc) unlockMC(); PLAYT=s.time||0;
   setArea(s.area||0); P.x=s.x; P.y=s.y; P.dir=s.dir||0; B=null; D=null; MENU=null; ENC=null; dialog=null; owFace=null; REV=null; encGrace=2; resetEnc(); }
 function readSlot(i){ try{ const t=localStorage.getItem(SAVE_KEY(i)); return t?JSON.parse(t):null; }catch(e){ return null; } }
@@ -1973,7 +1998,7 @@ function applyHash(){
 }
 const waitLoad=setInterval(()=>{ if(loaded>=names.length){ clearInterval(waitLoad); applyHash(); } },20);
 window.__G={encounter:(id,lv)=>{ ENC={t:0.05,cfg:pickEnemy(owPool(),lv||1,id)}; },setEnc:v=>{ENC_ON=v;},get ENC(){return ENC},get encSteps(){return encSteps},setSteps:v=>{encSteps=v;encGrace=0;},DUNS,dunDone,leavesGot,BOSSES,ULT_LEAFY,TIERS,
-  enterDun:i=>{ LEAFY.questGiven=true; enterDungeon(i); dialog=null; },solve:()=>{ const st=D.rooms[D.room]; st.blocks=st.plates.map(p=>p.slice()); st.solved=true; RCACHE=null; },
+  enterDun:i=>{ LEAFY.questGiven=true; enterDungeon(i); dialog=null; },solve:()=>{ const st=RS(); st.blocks=st.plates.map(p=>p.slice()); st.solved=true; RCACHE=null; },
   giveLeaves:n=>{ for(let i=0;i<8;i++){ leavesGot[i]=i<n; dunDone[i]=i<n; if(i<n&&!P.keys.includes('leaf'+i)) P.keys.push('leaf'+i); } stones=n; dun1Done=n>0; LEAFY.questGiven=true; },DR:()=>DR(),bossBattle:c=>startBattle(c,{boss:true}),areaNpcs:()=>areaNpcs(),gbGapCheck:n=>gbGapCheck(n),gbVolley:(k,p)=>gbVolley(k,p,[140,104,120,86]),startReveal:()=>startReveal(),get REV(){return REV},BIG_PAPER,FINAL_A,get bpBeaten(){return bpBeaten},get glubbbossBeaten(){return glubbbossBeaten},setGboss:v=>{glubbbossBeaten=v},get leafyToFactory(){return leafyToFactory},setLTF:v=>{leafyToFactory=v},get PEND_SAY(){return PEND_SAY},saveGame:()=>saveGame(),readSlot:i=>readSlot(i),get SLOT(){return SLOT},get FS(){return FS},get PLAYT(){return PLAYT},snapState:()=>snapState(),openFiles:()=>openFiles(),RARE_P,setRare:p=>{RARE_P_OVR=p},LEAFY,invGroups:()=>invGroups(),setArea:k=>setArea(k),goArea:(k,sd)=>goArea(k,sd),get curA(){return curA},AREAS,AREA_NPCS,get hasFrostDrawing(){return hasFrostDrawing},blocked:(x,y)=>blocked(x,y),TP_SEEN,TP_PADS,PUZ,AREA_NAMES,openTP:()=>openTP(),teleportTo:k=>teleportTo(k),get slide(){return D&&D.slide},dunWave:(p,l)=>dunWave(p,l),tryPush:(bx,by,dx,dy)=>{ D.push=1; tryPush([bx,by],dx,dy,0); },AREAS,get MW(){return MW},get cam(){return cam},get AREA_BANNER(){return AREA_BANNER},exitDun:()=>exitDungeon(),ulFight:()=>{ startBattle(ULT_LEAFY,null); },get ulCP(){return ulCP},giveMap:()=>{ hasGlubbbMap=true; if(!P.keys.includes('gmap')) P.keys.push('gmap'); },giveFrost:()=>{ hasFrostDrawing=true; if(!P.keys.includes('fdraw')) P.keys.push('fdraw'); },get CP(){return CP},setCPraw:c=>{CP=c;},DUN_CPS,SHOP_DEFS,CHARMS,GLUBBB_ITEMS,hasAllGlubbb:()=>hasAllGlubbb(),get CUR_SHOP(){return CUR_SHOP},respawnCP:()=>respawnCP(),die:()=>{ state='gameover'; T=0; },get WS(){return WS},unlockMC,mcUnlocked,get FIN(){return FIN},betrayal,get endLeaf(){return endLeaf},
   get hasGlubbbMap(){return hasGlubbbMap},GLUBBB,get MENU(){return MENU},SHOP,SHOPKEEP,FLOWER,ITEMS,testAttack:(id,atk)=>{ const cfg=id==='ultleafy'?ULT_LEAFY:BOSSES[id]||ENEMIES.find(e=>e.id===id); startBattle(cfg,null); startDodge(); B.atk=atk; B.box=B.target.slice(); return !!PATTERNS[atk]; },get D(){return D},get stones(){return stones},get dun1Done(){return dun1Done},ENT,enterRoom:(i,f)=>enterRoom(i,f),get endKind(){return endKind},get state(){return state},P,get B(){return B},get enemies(){return enemies},LEAFY,get dialog(){return dialog}};
 requestAnimationFrame(frame);
