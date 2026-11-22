@@ -3351,6 +3351,175 @@ MC_CH[4]={title:'TOY WORLD',ready:true,pal:MC_TOY_PAL,pool:['brick','windup'],lv
  ]};
 // chapter 3 -> 4 handled by the machine in the shark trench (mcNextChapter)
 
+// ---------- MULTIVERSE CHAOS CHAPTER 5: THE VIDEO GAME WORLD (maze + chompers + invaders, THE GAME EATER -> mystery shard, bush hook -> TO BE CONTINUED) ----------
+Object.assign(PXS,{
+ pellet:[{y:'#ffe890'},["yy","yy"]],
+ ibolt:[{g:'#80ff90',w:'#ffffff'},["w.","g.",".g","g."]],
+ pix:[{m:'#e060e0',c:'#60e0ff'},["mc","cm"]],
+ cart:[{g:'#9a9aa8',d:'#5a5a68',r:'#e04848'},["ggggg","grrrg","grrrg","ggggg","d.d.d"]],
+ coin:[{y:'#ffd040',w:'#fff8c0',o:'#c08a20'},[".yy.","ywoy","ywoy",".yy."]],
+ chompS:[{y:'#fae028',k:'#000'},[".yyy.","yyyk.","yyk..","yyyk.",".yyy."]],
+ shardM:[{s:'#c8c8d8',h:'#ffffff',q:'#6a6a80'},[".h.","hsq","sqs",".s."]],
+});
+// --- enemy moves: cp_ chomper, iv_ invader
+Object.assign(EA,{
+ cp_dots(b,dt,bx){ if(T6(b,'cd',dt,0.2)){ SET6(b,'cd',0.5); const l=b.v.cl=!b.v.cl; PX(b,{n:'pellet',s:2,x:l?L_(bx)-3:R_(bx)+3,y:rnd(T_(bx)+6,B_(bx)-6),vx:(l?1:-1)*60,r:2.5,life:2.6}); } },
+ cp_chase(b,dt,bx){ if(T6(b,'cc',dt,0.4)){ SET6(b,'cc',2.2); const c=[[L_(bx)+4,T_(bx)+4],[R_(bx)-4,T_(bx)+4],[L_(bx)+4,B_(bx)-4],[R_(bx)-4,B_(bx)-4]][Math.floor(rnd(0,4))]; PX(b,{n:'chompS',s:2,x:c[0],y:c[1],vx:0,vy:0,hm:1.2,sp:34,r:4,wait:0.5,life:2.4}); } },
+ cp_wall(b,dt,bx){ if(T6(b,'cw',dt,0.2)){ SET6(b,'cw',1.4); const gap=rnd(T_(bx)+14,B_(bx)-14), r=b.v.cr=!b.v.cr; for(let y=T_(bx)+5;y<B_(bx);y+=10) if(Math.abs(y-gap)>15) PX(b,{n:'pellet',x:r?R_(bx)+3:L_(bx)-3,y,vx:(r?-1:1)*42,wait:0.5,r:2.5,life:3.3}); } },
+ iv_rain(b,dt,bx){ if(T6(b,'ir',dt,0.2)){ SET6(b,'ir',0.38); PX(b,{n:'ibolt',x:rnd(L_(bx)+6,R_(bx)-6),y:T_(bx)-2,vy:62,r:2,life:2.4}); } },
+ iv_row(b,dt,bx){ if(T6(b,'iw',dt,0.3)){ SET6(b,'iw',1.5); const gap=rnd(L_(bx)+16,R_(bx)-16); for(let x=L_(bx)+6;x<R_(bx);x+=12) if(Math.abs(x-gap)>17) PX(b,{n:'pix',s:2,x,y:T_(bx)-3,vy:36,wx:8,wf:3,ph:0,wait:0.5,r:2.5,life:3.4}); } },
+ iv_aim(b,dt,bx){ if(T6(b,'ia',dt,0.3)){ SET6(b,'ia',0.9); const x=rnd(L_(bx)+10,R_(bx)-10), y=T_(bx)+4, a=aimA(b,x,y); PX(b,{n:'ibolt',x,y,vx:Math.cos(a)*70,vy:Math.sin(a)*70,wait:0.4,r:2,life:2.5}); } },
+});
+Object.assign(PATTERNS,{
+ cp_a:(b,dt,bx)=>EA.cp_dots(b,dt,bx), cp_b:(b,dt,bx)=>EA.cp_chase(b,dt,bx), cp_c:(b,dt,bx)=>EA.cp_wall(b,dt,bx),
+ iv_a:(b,dt,bx)=>EA.iv_rain(b,dt,bx), iv_b:(b,dt,bx)=>EA.iv_row(b,dt,bx), iv_c:(b,dt,bx)=>EA.iv_aim(b,dt,bx),
+});
+ENEMIES.push(
+ {id:'chomper',name:'Chomper',hp:40,atk:4,col:'#fae028',pattern:'cp_a',attacks:['cp_a','cp_b','cp_c'],spareAfter:2,gold:24,exp:20,sheet:'en_chomper',
+  intro:'* WAKA WAKA! A CHOMPER caught you in the maze!',intros:['* WAKA WAKA! A CHOMPER caught you in the maze!','* A CHOMPER opens its mouth REALLY wide.'],
+  check:'* CHOMPER - ATK 4 DEF 2\n* Eats dots all day. Thinks you might be a big dot.',
+  acts:[['Share dots','* You give it a handful of dots. Waka waka. Happy!'],['Say "not a dot"','* You explain you are NOT a dot. It looks embarrassed.'],['Power up','* You pretend to eat a big power pellet. It runs in a circle, scared!']],
+  flavor:['* Waka waka waka.','* It is looking at you like you are a snack.','* Its mouth opens... closes... opens...'],hurt:['* WAKA-ouch!'],low:['* The Chomper is out of breath.'],
+  spareLines:['* The Chomper wakas off to find more dots.'],defeatLines:['* The Chomper spins and shrinks away. Bwoo-bwoo-bwoo.']},
+ {id:'invader',name:'Invader',hp:38,atk:4,col:'#e060e0',pattern:'iv_a',attacks:['iv_a','iv_b','iv_c'],spareAfter:2,gold:22,exp:18,sheet:'en_invader',
+  intro:'* An INVADER zigzags down from the sky!',intros:['* An INVADER zigzags down from the sky!','* INVADER steps left. Steps right. Steps DOWN.'],
+  check:'* INVADER - ATK 4 DEF 2\n* Has been trying to land for forty years.',
+  acts:[['Wave','* You wave. It waves all of its little legs back.'],['Step left','* You step left. It steps left too. You are dancing!'],['Let it land','* You make room. It finally lands! It is SO happy.']],
+  flavor:['* Bloop. Bloop. Bloop.','* It moves exactly one pixel.','* Its legs wiggle.'],hurt:['* BLIP!'],low:['* The Invader is flickering.'],
+  spareLines:['* The Invader beams back up to its spaceship.'],defeatLines:['* The Invader pops into pixels.']});
+// --- THE GAME EATER (working name): an arcade machine that eats games
+Object.assign(BA,{
+ ge_jaws(b,dt,bx,m=1){ if(T6(b,'gj',dt,0.3)){ SET6(b,'gj',1.6*m); const h=26, y=clamp(b.soul.y-h/2+rnd(-16,16),T_(bx)+4,B_(bx)-h-4);
+     ZONE(b,{x:L_(bx),y:T_(bx),w:bx[2],h:y-T_(bx),warn:0.9,act:0.3,col:'#2a8a3a',edge:'#60ff70',wcol:'#60ff70'}); ZONE(b,{x:L_(bx),y:y+h,w:bx[2],h:B_(bx)-y-h,warn:0.9,act:0.3,col:'#2a8a3a',edge:'#60ff70',wcol:'#60ff70'}); } },
+ ge_carts(b,dt,bx,m=1){ if(T6(b,'gc',dt,0.3)){ SET6(b,'gc',1.1*m); const x=rnd(L_(bx)+16,R_(bx)-16), y=rnd(T_(bx)+14,B_(bx)-14); if(Math.hypot(x-b.soul.x,y-b.soul.y)<28) return; PX(b,{n:'cart',s:2,x,y,r:3,wait:0.25,pop:0.9,popN:8,popK:'pix',popV:44,life:1.3}); } },
+ ge_invade(b,dt,bx,m=1){ if(T6(b,'gi',dt,0.2)){ SET6(b,'gi',1.45*m); const gap=rnd(L_(bx)+16,R_(bx)-16); for(let x=L_(bx)+6;x<R_(bx);x+=12) if(Math.abs(x-gap)>17) PX(b,{n:'pix',s:2,x,y:T_(bx)-3,vy:40,wait:0.5,r:2.5,life:3}); } },
+ ge_chomp(b,dt,bx,m=1){ if(T6(b,'gm',dt,0.4)){ SET6(b,'gm',2.4*m); const l=b.v.gl=!b.v.gl; PX(b,{n:'chompS',s:3,x:l?L_(bx)-6:R_(bx)+6,y:rnd(T_(bx)+10,B_(bx)-10),vx:(l?1:-1)*38,hm:0.6,r:5,wait:0.4,life:3.2}); } },
+ ge_coins(b,dt,bx,m=1){ if(T6(b,'go',dt,0.2)){ SET6(b,'go',0.42*m); PX(b,{n:'coin',x:rnd(L_(bx)+6,R_(bx)-6),y:T_(bx)-2,vy:50,r:2.5,life:2.6}); } },
+});
+Object.assign(PATTERNS,{
+ ge_a:mix(['ge_jaws'],['ge_coins',2.4]), ge_b:mix(['ge_carts'],['ge_coins',2.2]), ge_c:mix(['ge_invade'],['ge_chomp',1.4]), ge_d:mix(['ge_jaws',1.2],['ge_carts',1.4]),
+ ge_rage:mix(['ge_jaws',1.3],['ge_invade',1.4],['ge_chomp',1.6]),
+});
+SPARE_NEED.gameeater={steps:[['Play a game',3],['Feed a cartridge',2],['Press PAUSE',2]],mercy:5,hint:['It eats games because nobody plays them with it. Play a game!','It is SO hungry. Feed it something it likes.','It never stops. Press its PAUSE button.']};
+MC_BOSS.gameeater=mkBoss({id:'gameeater',name:'THE GAME EATER',sheet:'b_gameeater',fw:128,hp:140,atk:4,col:'#60ff70',mc:true,mcBoss:'boss_gameeater',bg:'arcade',gold:130,spareGold:100,
+  attacks:['ge_a','ge_b','ge_c'],attacks2:['ge_d','ge_c','ge_b','ge_a'],rage:'ge_rage',pattern:'ge_a',
+  intros:['* THE GAME EATER powers on. INSERT COIN... TO BE EATEN.'],check:'* THE GAME EATER - ATK 4 DEF 4\n* An arcade machine that eats games. All of them. A strange shard glows in its screen.',
+  acts:[['Play a game','* You grab the joystick and play a round.','* GAME EATER: P-PLAYER TWO HAS ENTERED THE GAME?'],['Feed a cartridge','* You feed it an old game cartridge. CRUNCH.','* GAME EATER: ...DELICIOUS. HIGH SCORE.'],['Press PAUSE','* You press the big PAUSE button.','* GAME EATER: ...PAUSED. ...IT IS SO QUIET.']],
+  hurt:['* GLITCH!','* Its screen cracks!'],low:['* THE GAME EATER\'s screen is flickering.'],
+  thresholds:[[0.6,['* GAME EATER: LEVEL 2. DIFFICULTY: HARD.']],[0.3,['* GAME EATER: FINAL LEVEL! NO CONTINUES!']]],
+  taunts:['GAME EATER: NOM. NOM. NOM.','GAME EATER: I ATE 9999 GAMES. YOU ARE 10000.','GAME EATER: GAME OVER... FOR YOU.','GAME EATER: ...NOBODY PLAYS ME.'],
+  spareLines:['* You spared THE GAME EATER.','* GAME EATER: ...THANK YOU FOR PLAYING.','* It spits out a strange shard. It is a colour you have never seen.'],defeatLines:['* THE GAME EATER\'s screen goes black. GAME OVER.','* A strange shard rolls out of the coin slot.'],
+  onEnd:(k)=>{ MCS.shards.mystery=1; mcRS().solved=true; MC_RC=null; mcSave(); mcCut([{img:'mcp_17',draw:()=>{ g.fillStyle='rgba(0,0,0,.6)'; g.fillRect(0,96,VW,60); const c=pxSprite('shardM'); g.drawImage(c,200-c.width*4,100,c.width*8,c.height*8); txt('MYSTERY SHARD',200,138,'#e0e0f0',14,'center'); },
+     lines:['* You got a MYSTERY SHARD!','* It is from a different Leaf of Destiny. Its colour keeps changing... nobody knows which Leaf yet.']}],()=>say(['* The arcade door to the east slides open.'])); }});
+MC_BG.arcade=['#08081c','#000',(b)=>{ g.fillStyle='#2030c0'; g.fillRect(0,20,VW,3); g.fillRect(0,92,VW,3); for(let x=8;x<VW;x+=24){ g.fillStyle='#ffe890'; g.fillRect(x+((b.t*30)%24),56,3,3); } }];
+const MC_ARC_PAL={floor:'#08081c',floor2:'#0a0a22',wall:'#1a28a8',wallHi:'#4a68ff',wall2:'#101a70',speck:'#20204a',water:'#000',waterHi:'#202040',plate:'#40e060',block:'#e0c040',blockHi:'#fff080',gate:'#e04848',pads:['#e04848','#48a0e0','#e0c040','#60c050']};
+function mcArcProp(t,X,Y,v){ t.fillStyle='#000'; t.fillRect(X+1,Y,14,16); t.fillStyle=['#a03ac0','#3a60c0','#c03a3a'][Math.floor(v*3)]; t.fillRect(X+2,Y+1,12,14); t.fillStyle='#102010'; t.fillRect(X+4,Y+3,8,6); t.fillStyle='#60ff70'; t.fillRect(X+5,Y+5,6,1); t.fillStyle='#ffd040'; t.fillRect(X+5,Y+11,2,2); }
+function mcArcDeco(t,X,Y,v){ t.fillStyle='#ffe890'; t.fillRect(X+7,Y+7,2,2); }
+function mcArcOverlay(r){ g.fillStyle='rgba(0,0,0,.12)'; for(let y=0;y<VH;y+=3) g.fillRect(0,y,VW,1); }
+const mcChomperChaser=(x,y)=>({k:'chaser',x,y,x0:x,y0:y,sp:34,wait:1.5,en:'chomper',touch:(o)=>mcFight({...pickEnemy(['chomper'],7),mc:true},o)});
+MC_CH[5]={title:'VIDEO GAME WORLD',ready:true,pal:MC_ARC_PAL,pool:['chomper','invader'],lv:7,bg:'arcade',prop:mcArcProp,deco:mcArcDeco,overlay:mcArcOverlay,
+ intro:[{img:'mcp_17',title:'CHAPTER 5',sub:'THE VIDEO GAME WORLD',lines:['* The machine lands with a BLOOP... inside a video game!','* Mazes, chompers, invaders... everything is made of pixels.','* Somewhere in here, something is EATING all the games.']}],
+ rooms:[
+ {name:'START SCREEN',banner:true,start:[120,124],w:null,map:[
+  "#########################",
+  "#TT...................TT#",
+  "#T.....................T#",
+  "#......,.......,........#",
+  "#.......................#",
+  "#........................",
+  "#........................",
+  "#........................",
+  "#.......................#",
+  "#......,.......,........#",
+  "#.......................#",
+  "#.......................#",
+  "#T.....................T#",
+  "#TT...................TT#",
+  "#########################"],
+  objs:[mcMachineObj(72,124,()=>say(['* The machine is blinking "PLAYER 1 READY"... but it needs a shard\'s energy.'])),
+   {k:'sign',x:200,y:60,talk:()=>say(['* Big pixel letters: "PRESS START".','* (You press START. Nothing happens. You already started.)'])},
+   {k:'npc',x:240,y:170,solid:10,draw:(o,X,Y)=>sprite('en_invader',Math.floor(T*2)%2,0,X,Y,0.5),talk:()=>say(['* FRIENDLY INVADER: Bloop! A player! A REAL one!','* FRIENDLY INVADER: THE GAME EATER lives in the arcade past the maze. It eats every game it finds.','* FRIENDLY INVADER: If it eats ours... we all disappear. Bloop.'])}]},
+ {name:'CHOMPER MAZE',banner:true,enter:()=>{ mcRoom().objs.forEach(o=>{ if(o.k==='chaser'){ o.x=o.x0; o.y=o.y0; o.wait=1.5; } }); },map:[
+  "#########################",
+  "#,,,,,,,,,,,#,,,,,,,,,,,#",
+  "#,###,#####,#,#####,###,#",
+  "#,#,,,,,,,,,,,,,,,,,,,#,#",
+  "#,#,###,#########,###,#,#",
+  "#,,,,,#,,,,,#,,,,,#,,,,,#",
+  ",,,,#,#,###,#,###,#,#,,,,",
+  ",,#,#,,,#,,,,,,,#,,,#,#,,",
+  ",,,,#,#,###,#,###,#,#,,,,",
+  "#,,,,,#,,,,,#,,,,,#,,,,,#",
+  "#,#,###,#########,###,#,#",
+  "#,#,,,,,,,,,,,,,,,,,,,#,#",
+  "#,###,#####,#,#####,###,#",
+  "#,,,,,,,,,,,#,,,,,,,,,,,#",
+  "#########################"],
+  objs:[mcChomperChaser(184,124),mcChomperChaser(280,220),
+   {k:'sign',x:24,y:92,talk:()=>say(['* "BEWARE OF CHOMPERS. THEY ARE SLOW, BUT THEY NEVER GIVE UP."'])}]},
+ {name:'INVADER ALLEY',banner:true,seq:[1,3,4,2],solvedMsg:'* BEEP BOOP! HIGH SCORE! The red gate opens!',map:[
+  "#########################",
+  "#TT...........,.......TT#",
+  "#.................#.....#",
+  "#..1..............#.....#",
+  "#.................#.....#",
+  "#........3........#.....#",
+  "..................G......",
+  "..................G......",
+  "..................G......",
+  "#........4........#.....#",
+  "#.................#.....#",
+  "#..2..............#.....#",
+  "#.................#.....#",
+  "#TT...........,...#...TT#",
+  "#########################"],
+  objs:[{k:'sign',x:40,y:124,talk:()=>say(['* An arcade screen: "PRESS THE BUTTONS IN RAINBOW ORDER: RED, YELLOW, GREEN, BLUE."'])},
+   {k:'walker',x:200,y:60,x0:150,x1:270,sp:34,en:'invader',s:0.5,touch:(o)=>mcFight({...pickEnemy(['invader'],7),mc:true},o)},
+   {k:'walker',x:200,y:188,x0:150,x1:270,sp:40,en:'invader',s:0.5,touch:(o)=>mcFight({...pickEnemy(['invader'],7),mc:true},o)}]},
+ {name:"THE GAME EATER'S ARCADE",banner:true,map:[
+  "#########################",
+  "#TTTTTTTTTTTTTTTTTTTTTTT#",
+  "#T.....................T#",
+  "#.......................#",
+  "#..T.................T..#",
+  "#......................##",
+  ".......................G.",
+  ".......................G.",
+  ".......................G.",
+  "#......................##",
+  "#..T.................T..#",
+  "#.......................#",
+  "#T.....................T#",
+  "#TTTTTTTTTTTTTTTTTTTTTTT#",
+  "#########################"],
+  objs:[{k:'boss',x:250,y:124,cfg:'gameeater',solid:22,rad:44,hide:()=>mcFlag('boss_gameeater'),touch:(o)=>{ P.x-=26; mcCut([{img:'mcp_17',lines:['* A giant arcade machine blocks the way. Its screen is a big green MOUTH.','* It is chewing on a game cartridge. CRUNCH. CRUNCH.','* GAME EATER: NEW GAME FOUND. INSERT... YOU.']}],()=>mcFight(MC_BOSS.gameeater,o)); }}]},
+ {name:'THE WEIRD PLATFORM',banner:true,e:null,map:[
+  "#########################",
+  "#.......................#",
+  "#...,.........,.......,.#",
+  "#.......................#",
+  "#..,...........,........#",
+  "#.......................#",
+  "........................#",
+  "........................#",
+  "........................#",
+  "#.......................#",
+  "#....,........,.........#",
+  "#.......................#",
+  "#..,.........,......,...#",
+  "#.......................#",
+  "#########################"],
+  objs:[{k:'npc',x:260,y:120,solid:26,trad:40,draw:(o,X,Y)=>{ g.fillStyle='#000'; g.fillRect(X-30,Y-3,60,10); g.fillStyle='#b08050'; g.fillRect(X-29,Y-2,58,8); for(let k=-26;k<28;k+=8){ g.fillStyle=`hsl(${(T*120+k*6)%360},80%,65%)`; g.fillRect(X+k,Y-4,3,2); }
+      const bc=['#2a7a2a','#3a9a3a','#4ab84a']; for(const [dx,dy,r,c] of [[-12,-10,11,0],[12,-10,11,0],[0,-18,12,1],[-6,-12,8,2],[8,-14,7,2]]){ g.fillStyle='#000'; g.fillRect(X+dx-r-1,Y+dy-r+3,r*2+2,r*2-2); g.fillStyle=bc[c]; g.fillRect(X+dx-r,Y+dy-r+4,r*2,r*2-4); }
+      if(mcFlag('tbc')){ const c=pxSprite('stick'); g.drawImage(c,X-4,Y-40,c.width*2,c.height*2); } },
+    talk:()=>{ if(mcFlag('tbc')){ say(['* Bushy\'s stick is still in the bush. Something is humming deep inside the platform...']); return; }
+     if(!P.keys.includes('mc_stick')){ say(['* A bush on a very weird platform. The platform is humming.','* There is a little hole in the middle of the bush... like something should go in it.','* (A stick, maybe? Someone in the Toy World had lots of sticks...)']); return; }
+     mcSet('tbc'); mcSave(); mcCut([{img:'mcp_18',lines:['* You take out BUSHY\'S WOOD STICK.','* The bush on the weird platform rustles... like it was waiting for you.','* You push the stick into the bush.','* ...','* The whole platform starts to glow.']},
+       {draw:()=>{ g.fillStyle='#000'; g.fillRect(0,0,VW,VH); for(let i=0;i<40;i++){ g.fillStyle='#fff'; g.fillRect((i*97)%VW,(i*53)%140,1,1); } txt('TO BE CONTINUED...',200,70,'#ffe14a',20,'center'); mcDrawShards(176,110); txt('Multiverse Chaos will continue in a future update!',200,130,'#fff',8,'center'); },
+        lines:['* TO BE CONTINUED...','* (Your game is saved. Alejandro has a LOT more to add!)']}],()=>{}); }},
+   {k:'machine',x:80,y:200,solid:14,trad:34,draw:(o,X,Y)=>sprite('mc_npc',Math.floor(T*3)%2,1,X,Y,1),talk:()=>mcNextChapter()}]},
+ ]};
+
 window.__G={encounter:(id,lv)=>{ ENC={t:0.05,cfg:pickEnemy(owPool(),lv||1,id)}; },setEnc:v=>{ENC_ON=v;},get ENC(){return ENC},get encSteps(){return encSteps},setSteps:v=>{encSteps=v;encGrace=0;},DUNS,dunDone,leavesGot,BOSSES,ULT_LEAFY,TIERS,
   enterDun:i=>{ LEAFY.questGiven=true; enterDungeon(i); dialog=null; },solve:()=>{ const st=RS(); st.blocks=st.plates.map(p=>p.slice()); st.solved=true; RCACHE=null; },
   giveLeaves:n=>{ for(let i=0;i<8;i++){ leavesGot[i]=i<n; dunDone[i]=i<n; if(i<n&&!P.keys.includes('leaf'+i)) P.keys.push('leaf'+i); } stones=n; dun1Done=n>0; LEAFY.questGiven=true; },DR:()=>DR(),bossBattle:c=>startBattle(c,{boss:true}),areaNpcs:()=>areaNpcs(),gbGapCheck:n=>gbGapCheck(n),gbVolley:(k,p)=>gbVolley(k,p,[140,104,120,86]),startReveal:()=>startReveal(),get REV(){return REV},BIG_PAPER,FINAL_A,get bpBeaten(){return bpBeaten},get glubbbossBeaten(){return glubbbossBeaten},setGboss:v=>{glubbbossBeaten=v},get leafyToFactory(){return leafyToFactory},setLTF:v=>{leafyToFactory=v},get PEND_SAY(){return PEND_SAY},saveGame:()=>saveGame(),readSlot:i=>readSlot(i),get SLOT(){return SLOT},get FS(){return FS},get PLAYT(){return PLAYT},snapState:()=>snapState(),openFiles:()=>openFiles(),RARE_P,setRare:p=>{RARE_P_OVR=p},LEAFY,invGroups:()=>invGroups(),setArea:k=>setArea(k),goArea:(k,sd)=>goArea(k,sd),get curA(){return curA},AREAS,AREA_NPCS,get hasFrostDrawing(){return hasFrostDrawing},blocked:(x,y)=>blocked(x,y),TP_SEEN,TP_PADS,PUZ,AREA_NAMES,openTP:()=>openTP(),teleportTo:k=>teleportTo(k),get slide(){return D&&D.slide},dunWave:(p,l)=>dunWave(p,l),tryPush:(bx,by,dx,dy)=>{ D.push=1; tryPush([bx,by],dx,dy,0); },AREAS,get MW(){return MW},get cam(){return cam},get AREA_BANNER(){return AREA_BANNER},exitDun:()=>exitDungeon(),ulFight:()=>{ startBattle(ULT_LEAFY,null); },get ulCP(){return ulCP},giveMap:()=>{ hasGlubbbMap=true; if(!P.keys.includes('gmap')) P.keys.push('gmap'); },giveFrost:()=>{ hasFrostDrawing=true; if(!P.keys.includes('fdraw')) P.keys.push('fdraw'); },get CP(){return CP},setCPraw:c=>{CP=c;},DUN_CPS,SHOP_DEFS,CHARMS,GLUBBB_ITEMS,hasAllGlubbb:()=>hasAllGlubbb(),get CUR_SHOP(){return CUR_SHOP},respawnCP:()=>respawnCP(),die:()=>{ state='gameover'; T=0; },get WS(){return WS},unlockMC,mcUnlocked,get FIN(){return FIN},betrayal,get endLeaf(){return endLeaf},
