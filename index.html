@@ -1247,19 +1247,28 @@ const SPARE_NEED={
  ultleafy:{steps:[['Remember',3],['Talk',2],['Hold on',3]],mercy:0,hint:['Remember who Leafy was.','Talk to him.','Hold on. Do not let go.']},
  bigpaper:{steps:[['Ask name',2],['Read contract',3],['Recycle',2]],mercy:5,hint:['Ask its name.','Read the whole contract.','Offer to recycle it.']},
 };
-function spNeed(b){ return b&&SPARE_NEED[b.cfg.id]; }
+// v7 DIFFICULTY (only changes how hard bosses are to SPARE): Easy = any ACT once; Medium/Hard/Extreme = the boss's ACT steps in order, 2/3/4 times each (+0/1/2/3 mercy turns)
+const DIFFS=['easy','medium','hard','extreme'], DIFF_N={easy:1,medium:2,hard:3,extreme:4}, DIFF_M={easy:0,medium:1,hard:2,extreme:3};
+const DIFF_COL={easy:'#7ce36a',medium:'#ffe14a',hard:'#ff9a3a',extreme:'#ff4a4a'};
+const DIFF_INFO={easy:'Use ANY ACT on a boss just once to spare it.',medium:"Do the boss's ACTs in the right order, 2 times each.",hard:"Do the boss's ACTs in the right order, 3 times each.",extreme:"Do the boss's ACTs in the right order, 4 times each!"};
+let DIFF='medium';
+function diffOk(d){ return DIFFS.includes(d)?d:'medium'; }
+function spNeed(b){ const base=b&&SPARE_NEED[b.cfg.id]; if(!base) return null; if(b.spd&&b.spd.d===DIFF) return b.spd.nd;
+  const nd=DIFF==='easy'?{steps:[['*',1]],mercy:0,hint:['Any ACT will do.']}:{steps:base.steps.map(st=>[st[0],DIFF_N[DIFF]]),mercy:base.mercy?DIFF_M[DIFF]:0,hint:base.hint};
+  b.spd={d:DIFF,nd}; return nd; }
+function bossLike(c){ return !!(c&&(c.boss||c.dboss||c.mcBoss)&&!c.noKill); }
 function spSt(b){ return b.sp||(b.sp={i:0,n:0,m:0}); }
 function spStepsDone(b){ const nd=spNeed(b); return !nd||spSt(b).i>=nd.steps.length; }
-function canSpare(){ const nd=spNeed(B); if(!nd) return B.acts>=B.cfg.spareAfter||!!B.ulDown;
+function canSpare(){ const nd=spNeed(B); if(!nd) return B.acts>=(bossLike(B.cfg)?DIFF_N[DIFF]:B.cfg.spareAfter)||!!B.ulDown;
   const s=spSt(B), done=s.i>=nd.steps.length&&s.m>=nd.mercy; return B.cfg.ult?(done&&!!B.ulDown):done; }
 function spAct(b,name,lines){ const nd=spNeed(b); if(!nd) return; const s=spSt(b);
   if(s.i>=nd.steps.length){ lines.push(`* (${b.cfg.name} is calm. Choose MERCY ${nd.mercy?'and keep sparing':'now'}.)`); return; }
   const [want,cnt]=nd.steps[s.i];
-  if(name!==want){ lines.push(`* It didn't help right now. (${nd.hint[s.i]})`); return; }
-  s.n++; if(s.n<cnt){ lines.push(`* ${b.cfg.name} is listening... (${s.n}/${cnt})`); return; }
+  if(name!==want&&want!=='*'){ lines.push(`* It didn't help right now. (${nd.hint[s.i]})`); return; }
+  s.n++; if(s.n<cnt){ lines.push(`* ${b.cfg.name} is softening... (${s.n}/${cnt})`); return; }
   s.i++; s.n=0;
   if(s.i<nd.steps.length) lines.push(`* Something changed! (Step ${s.i}/${nd.steps.length}. Next: ${nd.hint[s.i]})`);
-  else lines.push(b.cfg.ult?'* (Every step done. Now he has to fall... and you have to SPARE him.)':`* ${b.cfg.name} hesitates. (Now SPARE ${nd.mercy} times to prove you mean it.)`); }
+  else lines.push(b.cfg.ult?'* (Every step done. Now he has to fall... and you have to SPARE him.)':(nd.mercy?`* ${b.cfg.name} hesitates. (Now SPARE ${nd.mercy} time${nd.mercy>1?'s':''} to prove you mean it.)`:`* ${b.cfg.name} doesn't want to fight anymore. (Choose MERCY - Spare!)`)); }
 function spMercy(b){ const nd=spNeed(b), s=spSt(b);   // returns lines, or null when the spare goes through
   if(canSpare()) return null;
   if(s.i<nd.steps.length) return [`* ${b.cfg.name} won't accept mercy yet.`,`* (Step ${s.i+1}/${nd.steps.length}: ${nd.hint[s.i]})`];
@@ -1269,7 +1278,7 @@ function spMercy(b){ const nd=spNeed(b), s=spSt(b);   // returns lines, or null 
 function spHit(b){ const nd=spNeed(b); if(!nd) return; const s=spSt(b); if(!(s.i||s.n||s.m)) return;
   s.m=0; if(s.n>0) s.n=0; else if(s.i>0&&!(b.cfg.ult&&s.i>=nd.steps.length)) s.i--; b.spLost=true; }
 function spCheckLine(b){ const nd=spNeed(b); if(!nd) return null; const s=spSt(b);
-  if(s.i<nd.steps.length) return `* (Spare: step ${s.i+1}/${nd.steps.length} - ${nd.hint[s.i]} ${s.n}/${nd.steps[s.i][1]})`;
+  if(s.i<nd.steps.length) return `* (Spare on ${DIFF.toUpperCase()}: step ${s.i+1}/${nd.steps.length} - ${nd.hint[s.i]} ${s.n}/${nd.steps[s.i][1]})`;
   return nd.mercy?`* (Spare: ${s.m}/${nd.mercy} mercy turns.)`:'* (Spare: ready once he falls.)'; }
 
 // ---- themed pixel sprites for bullets (tiny bitmaps, auto 1px outline)
@@ -2220,14 +2229,14 @@ let SLOT=0, PLAYT=0, FS=null, INIT_SNAP=null;
 function snapState(){ return {v:1,area:curA,x:Math.round(P.x),y:Math.round(P.y),dir:P.dir,
   P:{hp:P.hp,max:P.max,lv:P.lv,exp:P.exp,kills:P.kills,spares:P.spares,gold:P.gold,inv:P.inv.slice(),keys:P.keys.slice()},
   stones,dun1Done,leavesGot:leavesGot.slice(),dunDone:dunDone.slice(),hasGlubbbMap,hasFrostDrawing,glubbbossBeaten,leafyToFactory,cp:CP,tp:TP_SEEN.slice(),
-  leafy:{questGiven:!!LEAFY.questGiven,alive:LEAFY.alive,spared:LEAFY.spared},dstate:JSON.parse(JSON.stringify(DSTATE)),mc:mcUnlocked(),time:Math.floor(PLAYT)}; }
+  leafy:{questGiven:!!LEAFY.questGiven,alive:LEAFY.alive,spared:LEAFY.spared},dstate:JSON.parse(JSON.stringify(DSTATE)),mc:mcUnlocked(),time:Math.floor(PLAYT),diff:DIFF}; }
 function applyState(s){
   Object.assign(P,{hp:s.P.hp,max:s.P.max,lv:s.P.lv,exp:s.P.exp,kills:s.P.kills,spares:s.P.spares,gold:s.P.gold,inv:s.P.inv.slice(),keys:s.P.keys.slice()});
   stones=s.stones; dun1Done=s.dun1Done; s.leavesGot.forEach((v,i)=>leavesGot[i]=v); s.dunDone.forEach((v,i)=>dunDone[i]=v);
   hasGlubbbMap=s.hasGlubbbMap; hasFrostDrawing=s.hasFrostDrawing; glubbbossBeaten=s.glubbbossBeaten; leafyToFactory=s.leafyToFactory; bpBeaten=false; CP=s.cp||null; for(let k=0;k<TP_SEEN.length;k++) TP_SEEN[k]=s.tp?!!s.tp[k]:(k===0||!!s.dunDone[k-1]); if(CP&&CP.kind==='dun'&&!s.resumeCP) CP=cpOutside(CP.d);
   LEAFY.questGiven=s.leafy.questGiven; LEAFY.alive=s.leafy.alive; LEAFY.spared=s.leafy.spared;
   for(const k of Object.keys(DSTATE)) delete DSTATE[k]; Object.assign(DSTATE,JSON.parse(JSON.stringify(s.dstate||{}))); for(const k in DSTATE){ if(!DUNS[k]||!DSTATE[k]){ delete DSTATE[k]; continue; } fixDungeonState(+k,DSTATE[k]); DSTATE[k].bossCool=false; }
-  if(s.mc) unlockMC(); PLAYT=s.time||0;
+  if(s.mc) unlockMC(); PLAYT=s.time||0; DIFF=diffOk(s.diff);
   setArea(s.area||0); P.x=s.x; P.y=s.y; P.dir=s.dir||0; B=null; D=null; MENU=null; ENC=null; dialog=null; owFace=null; REV=null; encGrace=2; resetEnc(); }
 function readSlot(i){ try{ const t=localStorage.getItem(SAVE_KEY(i)); return t?JSON.parse(t):null; }catch(e){ return null; } }
 function saveGame(pos){ try{ const s=snapState(); if(pos){ s.area=pos.area; s.x=pos.x; s.y=pos.y; s.dir=0; } localStorage.setItem(SAVE_KEY(SLOT),JSON.stringify(s)); return true; }catch(e){ return false; } }
@@ -2235,24 +2244,39 @@ function autoSave(){ // after a boss: you will continue outside that dungeon
   if(D){ const d=DUNS[D.d]; return saveGame({area:d.area,x:d.ent.x,y:d.ent.y+16}); } return saveGame(); }
 function delSlot(i){ try{ localStorage.removeItem(SAVE_KEY(i)); }catch(e){} }
 function fmtTime(t){ t=Math.floor(t); const h=Math.floor(t/3600), m=Math.floor(t/60)%60, s=t%60; return h?`${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`:`${m}:${String(s).padStart(2,'0')}`; }
-function openFiles(){ FS={sel:0,btn:0,confirm:false,cb:1,msg:null,mt:0}; state='files'; SFX.ok(); }
-const FS_SLOT=i=>[40,34+i*50,320,44], FS_BTN=i=>[[40,190,100,26],[150,190,100,26],[260,190,100,26]][i], FS_YN=i=>[[120,150,70,24],[210,150,70,24]][i];
+function openFiles(){ FS={sel:0,btn:0,confirm:false,cb:1,msg:null,mt:0}; DPICK=null; state='files'; SFX.ok(); }
+// ---- v7 difficulty picker (used by NEW GAME on the file screen and by Multiverse Chaos)
+let DPICK=null;
+function openDiffPick(cur,cb){ DPICK={sel:DIFFS.indexOf(diffOk(cur)),cb}; SFX.sel(); }
+const DP_R=i=>[70,52+i*36,260,30];
+function updateDiffPick(){ const tap=LASTTAP&&performance.now()-LASTTAP.t<250?LASTTAP:null;
+  if(pressed.up){ DPICK.sel=(DPICK.sel+3)%4; SFX.sel(); } if(pressed.down){ DPICK.sel=(DPICK.sel+1)%4; SFX.sel(); }
+  if(pressed.b){ const c=DPICK.cb; DPICK=null; c(null); return; }
+  if(pressed.a){ if(tap){ LASTTAP=null; const h=[0,1,2,3].find(i=>inR(tap,DP_R(i))); if(h===undefined) return; DPICK.sel=h; }
+    const c=DPICK.cb, d=DIFFS[DPICK.sel]; DPICK=null; SFX.ok(); c(d); } }
+function drawDiffPick(){ g.fillStyle='rgba(0,0,0,.95)'; g.fillRect(0,0,VW,VH); txt('CHOOSE A DIFFICULTY',200,14,'#fff',12,'center'); txt('(It changes how hard the BOSSES are to SPARE.)',200,32,'#aaa',8,'center');
+  DIFFS.forEach((d,i)=>{ const [x,y,w,h]=DP_R(i), on=DPICK.sel===i; g.fillStyle=on?DIFF_COL[d]:'#445'; g.fillRect(x-2,y-2,w+4,h+4); g.fillStyle='#000'; g.fillRect(x,y,w,h);
+    if(on) drawHeart(x+8,y+6); txt(d.toUpperCase(),x+22,y+4,on?DIFF_COL[d]:'#fff',10); txt(DIFF_INFO[d],x+22,y+18,on?'#fff':'#999',8); });
+  txt(IS_TOUCH?'tap one to choose':'UP/DOWN: choose   Z: OK   X: back',200,206,'#888',8,'center'); }
+const FS_SLOT=i=>[40,34+i*50,320,44], FS_BTN=i=>[[24,190,84,26],[116,190,84,26],[208,190,84,26],[300,190,84,26]][i], FS_YN=i=>[[120,150,70,24],[210,150,70,24]][i];
 const inR=(p,r)=>p&&p.x>=r[0]&&p.x<r[0]+r[2]&&p.y>=r[1]&&p.y<r[1]+r[3];
 function fsAct(){ const s=readSlot(FS.sel);
   if(FS.btn===0){ if(s){ applyState(s); SLOT=FS.sel; state='overworld'; AREA_BANNER={t:2.4,name:AREA_NAMES[curA]}; SFX.ok(); if(s.resumeCP&&CP&&CP.kind==='dun') respawnCP(true); }
-    else { applyState(INIT_SNAP); SLOT=FS.sel; PLAYT=0; saveGame(); state='overworld'; SFX.ok(); } }
-  else if(FS.btn===1){ if(s){ FS.confirm=true; FS.cb=1; SFX.sel(); } else { FS.msg='That file is already empty.'; FS.mt=1.6; } }
+    else { const si=FS.sel; openDiffPick('medium',d=>{ if(!d) return; applyState(INIT_SNAP); DIFF=d; SLOT=si; PLAYT=0; saveGame(); state='overworld'; SFX.ok(); }); } }
+  else if(FS.btn===1){ const si=FS.sel; if(s) openDiffPick(s.diff,d=>{ if(!d) return; s.diff=d; try{ localStorage.setItem(SAVE_KEY(si),JSON.stringify(s)); }catch(e){} FS.msg=`FILE ${si+1} is now ${d.toUpperCase()}.`; FS.mt=1.8; });
+    else { FS.msg='Empty file: pick NEW GAME to choose a difficulty.'; FS.mt=1.8; } }
+  else if(FS.btn===2){ if(s){ FS.confirm=true; FS.cb=1; SFX.sel(); } else { FS.msg='That file is already empty.'; FS.mt=1.6; } }
   else { state='worlds'; SFX.sel(); } }
-function updateFiles(dt){ FS.mt=Math.max(0,FS.mt-dt); const tap=LASTTAP&&performance.now()-LASTTAP.t<250?LASTTAP:null;
+function updateFiles(dt){ FS.mt=Math.max(0,FS.mt-dt); if(DPICK){ updateDiffPick(); return; } const tap=LASTTAP&&performance.now()-LASTTAP.t<250?LASTTAP:null;
   if(FS.confirm){ if(pressed.left||pressed.right){ FS.cb=1-FS.cb; SFX.sel(); }
     if(pressed.b){ FS.confirm=false; return; }
     if(pressed.a){ if(tap){ LASTTAP=null; const h=[0,1].find(i=>inR(tap,FS_YN(i))); if(h===undefined) return; FS.cb=h; }
       if(FS.cb===0){ delSlot(FS.sel); FS.msg=`FILE ${FS.sel+1} deleted.`; FS.mt=1.6; beep(200,0.2,'square',0.06); } FS.confirm=false; } return; }
   if(pressed.up){ FS.sel=(FS.sel+2)%3; SFX.sel(); } if(pressed.down){ FS.sel=(FS.sel+1)%3; SFX.sel(); }
-  if(pressed.left){ FS.btn=(FS.btn+2)%3; SFX.sel(); } if(pressed.right){ FS.btn=(FS.btn+1)%3; SFX.sel(); }
+  if(pressed.left){ FS.btn=(FS.btn+3)%4; SFX.sel(); } if(pressed.right){ FS.btn=(FS.btn+1)%4; SFX.sel(); }
   if(pressed.b){ state='worlds'; return; }
   if(pressed.a){ if(tap){ LASTTAP=null; const si=[0,1,2].find(i=>inR(tap,FS_SLOT(i))); if(si!==undefined){ if(FS.sel===si){ FS.btn=0; fsAct(); } else { FS.sel=si; SFX.sel(); } return; }
-      const bi=[0,1,2].find(i=>inR(tap,FS_BTN(i))); if(bi===undefined) return; FS.btn=bi; }
+      const bi=[0,1,2,3].find(i=>inR(tap,FS_BTN(i))); if(bi===undefined) return; FS.btn=bi; }
     fsAct(); } }
 function drawFiles(){ g.fillStyle='#0c140c'; g.fillRect(0,0,VW,VH); for(let i=0;i<40;i++){ g.fillStyle=i%2?'#1a2a14':'#14200e'; g.fillRect((i*53+Math.floor(T*6))%VW,(i*37)%VH,2,2); }
   txt('LEAFY GREEN WORLD  -  CHOOSE A FILE',200,10,'#bfe86a',10,'center');
@@ -2261,12 +2285,13 @@ function drawFiles(){ g.fillStyle='#0c140c'; g.fillRect(0,0,VW,VH); for(let i=0;
     txt(`FILE ${i+1}`,x+10,y+6,on?'#ff0':'#fff',12);
     if(!s){ txt('Empty',x+10,y+24,'#888',10); }
     else { txt(AREA_NAMES[s.area]||'???',x+90,y+6,'#fff',10); txt(`LEAVES ${s.leavesGot.filter(Boolean).length}/8`,x+90,y+24,'#bfe86a',10);
-      txt(`TIME ${fmtTime(s.time||0)}`,x+200,y+24,'#9cf',10); txt(`HP ${s.P.hp}/${s.P.max}  ${s.P.gold}G`,x+200,y+6,'#ff6',8);
+      txt(`TIME ${fmtTime(s.time||0)}`,x+200,y+24,'#9cf',10); txt(`HP ${s.P.hp}/${s.P.max}  ${s.P.gold}G`,x+200,y+6,'#ff6',8); { const dd=diffOk(s.diff); txt(dd.toUpperCase(),x+w-6,y+35,DIFF_COL[dd],8,'right'); }
       for(let k=0;k<8;k++) if(s.leavesGot[k]) drawLeafIcon(x+12+k*8,y+26,LEAVES[k].col,1); } }
-  const has=!!readSlot(FS.sel), labels=[has?'LOAD':'NEW GAME','DELETE','BACK'];
-  for(let i=0;i<3;i++){ const [x,y,w,h]=FS_BTN(i), on=FS.btn===i; g.fillStyle=on?'#ff0':'#556'; g.fillRect(x-2,y-2,w+4,h+4); g.fillStyle=i===1?'#2a0c0c':'#000'; g.fillRect(x,y,w,h); txt(labels[i],x+w/2,y+8,on?'#ff0':'#fff',10,'center'); }
+  const has=!!readSlot(FS.sel), labels=[has?'LOAD':'NEW GAME','DIFFICULTY','DELETE','BACK'];
+  for(let i=0;i<4;i++){ const [x,y,w,h]=FS_BTN(i), on=FS.btn===i; g.fillStyle=on?'#ff0':'#556'; g.fillRect(x-2,y-2,w+4,h+4); g.fillStyle=i===2?'#2a0c0c':'#000'; g.fillRect(x,y,w,h); txt(labels[i],x+w/2,y+9,on?'#ff0':'#fff',i===1?8:10,'center'); }
   txt(IS_TOUCH?'tap a file, then LOAD / NEW GAME':'UP/DOWN: file   LEFT/RIGHT: button   Z: choose   X: back',200,226,'#888',8,'center');
   if(FS.mt>0) txt(FS.msg,200,176,'#f66',8,'center');
+  if(DPICK){ drawDiffPick(); return; }
   if(FS.confirm){ g.fillStyle='rgba(0,0,0,.75)'; g.fillRect(0,0,VW,VH); box(90,96,220,90); txt(`Delete FILE ${FS.sel+1}?`,200,108,'#fff',12,'center'); txt('This cannot be undone.',200,126,'#f88',8,'center');
     ['YES','NO'].forEach((l,i)=>{ const [x,y,w,h]=FS_YN(i), on=FS.cb===i; g.fillStyle=on?'#ff0':'#556'; g.fillRect(x-2,y-2,w+4,h+4); g.fillStyle='#000'; g.fillRect(x,y,w,h); txt(l,x+w/2,y+7,on?'#ff0':'#fff',10,'center'); }); } }
 
@@ -2321,20 +2346,26 @@ function mcFlag(f){ return !!(MCS&&MCS.flags[f]); }
 function mcSet(f,v=true){ MCS.flags[f]=v; }
 function mcToast(msg,t=2.2){ MCS.toast={msg,t}; }
 // ---------- start / menu ----------
-function mcOpenMenu(){ const s=mcRead(); MCMENU={sel:0,opts:s?['CONTINUE','NEW GAME','BACK']:['NEW GAME','BACK'],save:s,confirm:false}; state='mcmenu'; T=0; }
-function mcUpdateMenu(){ const M=MCMENU; if(pressed.up){ M.sel=(M.sel+M.opts.length-1)%M.opts.length; SFX.sel(); M.confirm=false; } if(pressed.down){ M.sel=(M.sel+1)%M.opts.length; SFX.sel(); M.confirm=false; }
+function mcOpenMenu(){ const s=mcRead(); MCMENU={sel:0,opts:s?['CONTINUE','NEW GAME','DIFFICULTY','BACK']:['NEW GAME','BACK'],save:s,confirm:false}; DPICK=null; state='mcmenu'; T=0; }
+function mcUpdateMenu(){ const M=MCMENU; if(DPICK){ updateDiffPick(); return; } if(pressed.up){ M.sel=(M.sel+M.opts.length-1)%M.opts.length; SFX.sel(); M.confirm=false; } if(pressed.down){ M.sel=(M.sel+1)%M.opts.length; SFX.sel(); M.confirm=false; }
   if(pressed.b){ openWorlds(); return; }
   if(pressed.a&&T>0.3){ const o=M.opts[M.sel]; SFX.ok();
-    if(o==='BACK') openWorlds(); else if(o==='CONTINUE') mcContinue(M.save); else if(o==='NEW GAME'){ if(M.save&&!M.confirm){ M.confirm=true; return; } mcNewGame(); } } }
+    if(o==='BACK') openWorlds(); else if(o==='CONTINUE') mcContinue(M.save); else if(o==='NEW GAME'){ if(M.save&&!M.confirm){ M.confirm=true; return; } openDiffPick(M.save?M.save.diff:'medium',d=>{ if(d) mcNewGame(d); }); }
+    else if(o==='DIFFICULTY'&&M.save){ openDiffPick(M.save.diff,d=>{ if(!d) return; M.save.diff=d; try{ localStorage.setItem(MC_SAVE,JSON.stringify(M.save)); }catch(e){} }); } } }
 function mcDrawMenu(){ drawStars(); drawPortal(200,74,26); txt('MULTIVERSE CHAOS',200,118,'#c8f',16,'center');
-  const M=MCMENU; M.opts.forEach((o,i)=>{ const y=146+i*18, on=i===M.sel; if(on) drawHeart(150,y+5); txt(o,166,y,on?'#ff0':'#fff',10); });
-  if(M.save) txt(`Saved: ${MC_CH[M.save.ch]?MC_CH[M.save.ch].title:'?'}  LV ${M.save.P?M.save.P.lv:1}`,200,206,'#9ef',8,'center');
-  if(M.confirm) txt('Press Z again to start over (the old run is erased)',200,222,'#f88',8,'center'); }
+  const M=MCMENU; M.opts.forEach((o,i)=>{ const y=138+i*15, on=i===M.sel; if(on) drawHeart(150,y+5); txt(o,166,y,on?'#ff0':'#fff',10); });
+  if(M.save) txt(`Saved: ${MC_CH[M.save.ch]?MC_CH[M.save.ch].title:'?'}  LV ${M.save.P?M.save.P.lv:1}`,200,202,'#9ef',8,'center'); if(M.save){ const dd=diffOk(M.save.diff); txt('DIFFICULTY: '+dd.toUpperCase(),200,214,DIFF_COL[dd],8,'center'); }
+  if(M.confirm) txt('Press Z again to start over (the old run is erased)',200,226,'#f88',8,'center');
+  if(DPICK) drawDiffPick(); }
 function mcBaseP(){ Object.assign(P,{hp:30,max:30,lv:1,exp:0,kills:0,spares:0,gold:20,inv:['dew','dew','tea'],keys:[],dir:0,frame:0}); }
-function mcNewGame(){ MCS=mcNew(); mcBaseP(); D=null; B=null; MENU=null; dialog=null; ENC=null; curA=0;
+function mcNewGame(d){ MCS=mcNew(); MCS.diff=diffOk(d||DIFF); DIFF=MCS.diff; mcBaseP(); D=null; B=null; MENU=null; dialog=null; ENC=null; curA=0;
   state='mc'; mcEnterRoom(0,0,null); mcCut(MC_PROLOGUE,()=>{ mcEnterRoom(0,0,null); mcSave(); MC_CH[0].onStart&&MC_CH[0].onStart(); }); }
-function mcContinue(s){ MCS=Object.assign(mcNew(),s); MCS.cut=null; MCS.toast=null; Object.assign(P,s.P||{}); P.inv=(s.P&&s.P.inv||[]).slice(); P.keys=(s.P&&s.P.keys||[]).slice();
-  D=null; B=null; MENU=null; dialog=null; ENC=null; state='mc'; if(!MC_CH[MCS.ch]){ MCS.ch=MC_CH.length-1; MCS.room=0; } mcEnterRoom(MCS.ch,MCS.room,null); P.x=s.x||MCS.ex; P.y=s.y||MCS.ey; mcToast('* Welcome back, The One.'); }
+function mcContinue(s){ MCS=Object.assign(mcNew(),s); MCS.diff=diffOk(MCS.diff); DIFF=MCS.diff; MCS.cut=null; MCS.toast=null; Object.assign(P,s.P||{}); P.inv=(s.P&&s.P.inv||[]).slice(); P.keys=(s.P&&s.P.keys||[]).slice();
+  D=null; B=null; MENU=null; dialog=null; ENC=null; state='mc'; if(!MC_CH[MCS.ch]){ MCS.ch=MC_CH.length-1; MCS.room=0; }
+  // v7: Bushy's pit is gone. Saves inside it go back to the playroom; anyone past A-BOMB gets the wood stick from his truck instead.
+  for(const f of ['doll_talk','fell','warn_stick']) delete MCS.flags[f]; for(const k of Object.keys(MCS.rs||{})) if(k==='4_4') delete MCS.rs[k];
+  if(!MC_CH[MCS.ch].rooms[MCS.room]){ MCS.room=MCS.ch===4?1:0; s={...s,x:200,y:124}; MCS.ex=200; MCS.ey=124; }
+  if(MCS.flags.boss_abomb&&!P.keys.includes('mc_stick')){ P.keys.push('mc_stick'); MCS.flags.got_stick=true; } mcEnterRoom(MCS.ch,MCS.room,null); P.x=s.x||MCS.ex; P.y=s.y||MCS.ey; mcToast('* Welcome back, The One.'); }
 // ---------- rooms ----------
 function mcEnterRoom(ch,room,from){ const nc=ch!==MCS.ch; MCS.ch=ch; MCS.room=room; MC_RC=null; const r=mcRoom(); { const st=mcRS(); if(from&&!r.side&&!st.solved&&st.blocks.length){ st.blocks=[]; r.map.forEach((row,y)=>[...row].forEach((c,x)=>{ if(c==='B') st.blocks.push([x,y]); })); } }   // stuck blocks reset when you leave and come back
   if(from==='w'){ P.x=392; P.y=clamp(P.y,24,228); } else if(from==='e'){ P.x=8; P.y=clamp(P.y,24,228); }
@@ -3192,7 +3223,7 @@ MC_CH[3]={title:'UNDERWATER WORLD',ready:true,pal:MC_SEA_PAL,pool:['puffer','jel
  ]};
 MC_CH[3].rooms[5].e=6;
 
-// ---------- MULTIVERSE CHAOS CHAPTER 4: THE TOY WORLD (A-BOMB -> blue shard 1/2, secret: broken doll + wood platform -> BUSHY'S PIT -> wood stick) ----------
+// ---------- MULTIVERSE CHAOS CHAPTER 4: THE TOY WORLD (A-BOMB -> blue shard 1/2 + the wood stick for Chapter 5) ----------
 Object.assign(PXS,{
  lego:[{r:'#e03c3c',h:'#ff8080',d:'#902020'},[".h.h.","rrrrr","rrrrr","ddddd"]],
  legoB:[{r:'#3c64e0',h:'#80a0ff',d:'#203890'},[".h.h.","rrrrr","rrrrr","ddddd"]],
@@ -3230,6 +3261,7 @@ ENEMIES.push(
   acts:[['Wind up','* You wind up its key. It does a happy little dance!'],['Beep back','* You beep at it. It beeps back. Friends!'],['Oil','* You oil its squeaky knees. Much better.']],
   flavor:['* Tick tick tick.','* Its key is slowing down.','* Beep boop.'],hurt:['* BZZT-CLANK!'],low:['* The Wind-Up Bot is ticking very slowly.'],
   spareLines:['* The Wind-Up Bot marches off, beeping happily.'],defeatLines:['* The Wind-Up Bot winds down for good.']});
+function mcGiveStick(){ if(!P.keys.includes('mc_stick')) P.keys.push('mc_stick'); mcSet('got_stick'); }
 // --- A-BOMB: a toy truck that never got played with
 Object.assign(BA,{
  bm_ram(b,dt,bx,m=1){ if(T6(b,'mr',dt,0.3)){ SET6(b,'mr',1.45*m); const h=20, y=clamp(b.soul.y-h/2,T_(bx),B_(bx)-h), l=b.v.ml=!b.v.ml;
@@ -3251,8 +3283,10 @@ MC_BOSS.abomb=mkBoss({id:'abomb',name:'A-BOMB',sheet:'b_abomb',fw:128,hp:120,atk
   thresholds:[[0.6,['* A-BOMB: Nobody plays with ME, so nobody plays at ALL!']],[0.3,['* A-BOMB: FULL... THROTTLE!!']]],
   taunts:['A-BOMB: VROOM VROOM!','A-BOMB: I\'m gonna break ALL the toys!','A-BOMB: This shiny shard makes me go SUPER fast!','A-BOMB: ...nobody ever picked me.'],
   spareLines:['* You spared A-BOMB.','* A-BOMB: You... played with me. Nobody ever did that.','* He pops the blue shard off his antenna and rolls it to you.'],defeatLines:['* A-BOMB tips over. His wheels spin slower... and stop.','* The blue shard rolls across the floor to you.'],
-  onEnd:(k)=>{ MCS.shards.blue=Math.max(MCS.shards.blue||0,1); mcSave(); mcCut([{img:'mcp_15',draw:()=>{ g.fillStyle='rgba(0,0,0,.55)'; g.fillRect(0,96,VW,60); const c=pxSprite('shardBl'); g.drawImage(c,200-c.width*4,100,c.width*8,c.height*8); txt('BLUE SHARD  1/2',200,138,'#96beff',14,'center'); },
-     lines:['* You got the FIRST BLUE SHARD!','* A whole new Leaf of Destiny... the BLUE one.']}],()=>{ MC_RC=null; say(['* Your machine rolled in behind the racetrack. (Talk to it to travel on.)']); }); }});
+  onEnd:(k)=>{ MCS.shards.blue=Math.max(MCS.shards.blue||0,1); mcGiveStick(); mcSave(); mcCut([{img:'mcp_15',draw:()=>{ g.fillStyle='rgba(0,0,0,.55)'; g.fillRect(0,96,VW,60); const c=pxSprite('shardBl'); g.drawImage(c,200-c.width*4,100,c.width*8,c.height*8); txt('BLUE SHARD  1/2',200,138,'#96beff',14,'center'); },
+     lines:['* You got the FIRST BLUE SHARD!','* A whole new Leaf of Destiny... the BLUE one.']},
+     {draw:()=>{ g.fillStyle='#1a0e14'; g.fillRect(0,0,VW,VH); const c=pxSprite('stick'); g.drawImage(c,200-c.width*5,50,c.width*10,c.height*10); txt('WOOD STICK',200,120,'#c89a60',16,'center'); txt('(a key item... for later)',200,142,'#fff',8,'center'); },
+      lines:['* Something else rolls out of A-BOMB\'s truck bed...','* An old WOOD STICK with one green leaf on it.','* You got the WOOD STICK! It feels like it belongs somewhere.']}],()=>{ MC_RC=null; say(['* Your machine rolled in behind the racetrack. (Talk to it to travel on.)']); }); }});
 MC_BG.toy=['#f8d8a0','#c84a5a',(b)=>{ g.fillStyle='#ffe8c0'; for(let x=10;x<VW;x+=40) for(let y=8;y<80;y+=32){ g.fillRect(x+((y/32)%2)*20,y,2,6); g.fillRect(x-2+((y/32)%2)*20,y+2,6,2); } for(let x=0;x<VW;x+=20){ g.fillStyle=(x/20)%2?'#c84a5a':'#4a5ab8'; g.fillRect(x,96,20,16); } }];
 const MC_TOY_PAL={floor:'#b84a5a',floor2:'#4a5ab8',wall:'#e0b050',wallHi:'#ffe080',wall2:'#a07830',speck:'#ffffff30',water:'#3a2a1a',waterHi:'#6a4a2a',plate:'#60c050',block:'#e03c3c',blockHi:'#ff8080',gate:'#3c64e0'};
 function mcToyProp(t,X,Y,v){ const c=[['#e03c3c','#ff8080'],['#3c64e0','#80a0ff'],['#e0c040','#fff080'],['#40b050','#90e090']][Math.floor(v*4)];
@@ -3296,10 +3330,7 @@ MC_CH[4]={title:'TOY WORLD',ready:true,pal:MC_TOY_PAL,pool:['brick','windup'],lv
   "#T.....,.......,.......T#",
   "#TTTT....TTTTTTT....TTTT#",
   "#########################"],
-  objs:[mcToyNpc(72,200,2,()=>{ mcSet('doll_talk'); return ['* BROKEN DOLL: ...A-BOMB cracked my face.','* BROKEN DOLL: Psst. See that old wooden platform by the big blocks? It\'s broken too.','* BROKEN DOLL: Something lives UNDER it. I hear it rustling at night.','* BROKEN DOLL: Go on, step on it. If you\'re brave.']; },{trad:28}),
-   {k:'npc',x:328,y:204,solid:0,trad:0,touch:null,draw:(o,X,Y)=>{ g.fillStyle='#000'; g.fillRect(X-17,Y-13,34,18); g.fillStyle='#9a6a3a'; g.fillRect(X-16,Y-12,32,16); g.fillStyle='#6a4420'; for(let k=-12;k<16;k+=8) g.fillRect(X+k,Y-12,1,16); g.fillRect(X-16,Y-5,32,1); g.fillStyle='#2a1a0a'; g.fillRect(X-3,Y-10,2,6); g.fillRect(X-1,Y-6,4,2); g.fillRect(X+3,Y-4,2,5); }},
-   {k:'item',x:328,y:204,rad:12,icon:null,draw:()=>{},touch:(o)=>{ if(!mcFlag('doll_talk')){ P.y-=14; say(['* The old wooden platform creaks under your feet. Better not stand here.']); return; }
-     MCS.flags.fell=true; mcCut([{img:'mcp_16',lines:['* CRACK! The wooden platform snaps!','* You fall down, down, into a hidden pit...']}],()=>mcEnterRoom(4,4,{x:200,y:60})); }},
+  objs:[
    {k:'walker',x:120,y:204,x0:100,x1:260,sp:30,en:'brick',s:0.5,touch:(o)=>mcFight({...pickEnemy(['brick'],6),mc:true},o)}]},
  {name:'BLOCK FORT',banner:true,solvedMsg:'* Click click! The blocks hit the buttons. The toy gate swings open!',map:[
   "#########################",
@@ -3336,34 +3367,11 @@ MC_CH[4]={title:'TOY WORLD',ready:true,pal:MC_TOY_PAL,pool:['brick','windup'],lv
   "#TTTTTTTTTTTTTTTTTTTTTTT#",
   "#########################"],
   objs:[{k:'boss',x:250,y:124,cfg:'abomb',solid:22,rad:44,hide:()=>mcFlag('boss_abomb'),touch:(o)=>{ P.x-=26; mcCut([{img:'mcp_15',lines:['* A little red toy truck rolls up. He looks totally normal...','* ...except for the BLUE SHARD glowing on his antenna.','* A-BOMB: Nobody ever played with me. So I break EVERYONE\'S toys!','* A-BOMB: You\'re a toy too, right? VROOOOM!']}],()=>mcFight(MC_BOSS.abomb,o)); }},
-   {k:'machine',x:330,y:120,solid:14,trad:34,show:()=>mcFlag('boss_abomb'),talk:()=>{ if(!P.keys.includes('mc_stick')&&!mcFlag('warn_stick')){ mcSet('warn_stick'); say(['* Something rustles under the PLAYROOM floor... Are you sure you want to leave?','* (Talk to the machine again to travel on.)']); return; } mcNextChapter(); },draw:(o,X,Y)=>sprite('mc_npc',Math.floor(T*3)%2,1,X,Y,1)}]},
- {name:"BUSHY'S PIT",banner:true,dark:true,e:null,w:null,map:[
-  "#########################",
-  "####...........##########",
-  "###.................#####",
-  "##...,..........,.....###",
-  "#.......TT..............#",
-  "#.......TT.......,......#",
-  "#.......................#",
-  "#....,..................#",
-  "#.......................#",
-  "#..........,.......TT...#",
-  "#..................TT...#",
-  "##.....,...............##",
-  "###...................###",
-  "#####...............#####",
-  "#########################"],
-  objs:[{k:'npc',x:200,y:150,solid:12,trad:30,glow:44,gy:-16,draw:(o,X,Y)=>sprite('mc_npc2',Math.floor(T*2)%2,1,X,Y,0.75),talk:()=>{
-     if(mcFlag('got_stick')){ say(['* BUSHY: Go on. The stick knows where it wants to go.']); return; }
-     mcSet('got_stick'); P.keys.push('mc_stick'); mcSave(); fanfareSmall();
-     mcCut([{img:'mcp_16',title:'BUSHY',lines:['* Something made of leaves, crafts, sticks and dirt unfolds in the dark.','* BUSHY: ...a visitor. Nobody falls in here on purpose.','* BUSHY: You are not a toy. You smell like LEAVES.','* BUSHY: Take this. One of my sticks. It will matter... later.']},
-       {draw:()=>{ g.fillStyle='#0a0804'; g.fillRect(0,0,VW,VH); const c=pxSprite('stick'); g.drawImage(c,200-c.width*5,50,c.width*10,c.height*10); txt('WOOD STICK',200,120,'#c89a60',16,'center'); txt('(a key item... for later)',200,142,'#fff',8,'center'); },lines:['* You got BUSHY\'S WOOD STICK!','* BUSHY: Find a bush on a weird platform. You\'ll know it.']}],()=>{}); }},
-   {k:'npc',x:56,y:60,solid:0,trad:24,glow:24,draw:(o,X,Y)=>{ g.fillStyle='#c8a060'; g.fillRect(X-1,Y-60,2,60); for(let k=0;k<6;k++) g.fillRect(X-3,Y-56+k*10,6,2); },
-    talk:()=>say(['* A jump rope hangs down from the hole. You climb back up.'],()=>mcEnterRoom(4,1,{x:290,y:150}))}]},
+   {k:'machine',x:330,y:120,solid:14,trad:34,show:()=>mcFlag('boss_abomb'),talk:()=>mcNextChapter(),draw:(o,X,Y)=>sprite('mc_npc',Math.floor(T*3)%2,1,X,Y,1)}]},
  ]};
 // chapter 3 -> 4 handled by the machine in the shark trench (mcNextChapter)
 
-// ---------- MULTIVERSE CHAOS CHAPTER 5: THE VIDEO GAME WORLD (maze + chompers + invaders, THE GAME EATER -> mystery shard, bush hook -> TO BE CONTINUED) ----------
+// ---------- MULTIVERSE CHAOS CHAPTER 5: THE VIDEO GAME WORLD (maze + chompers + invaders, THE GAME EATER -> mystery shard, wood-stick bush hook -> TO BE CONTINUED) ----------
 Object.assign(PXS,{
  pellet:[{y:'#ffe890'},["yy","yy"]],
  ibolt:[{g:'#80ff90',w:'#ffffff'},["w.","g.",".g","g."]],
@@ -3524,9 +3532,9 @@ MC_CH[5]={title:'VIDEO GAME WORLD',ready:true,pal:MC_ARC_PAL,pool:['chomper','in
   objs:[{k:'npc',x:260,y:120,solid:26,trad:40,draw:(o,X,Y)=>{ g.fillStyle='#000'; g.fillRect(X-30,Y-3,60,10); g.fillStyle='#b08050'; g.fillRect(X-29,Y-2,58,8); for(let k=-26;k<28;k+=8){ g.fillStyle=`hsl(${(T*120+k*6)%360},80%,65%)`; g.fillRect(X+k,Y-4,3,2); }
       const bc=['#2a7a2a','#3a9a3a','#4ab84a']; for(const [dx,dy,r,c] of [[-12,-10,11,0],[12,-10,11,0],[0,-18,12,1],[-6,-12,8,2],[8,-14,7,2]]){ g.fillStyle='#000'; g.fillRect(X+dx-r-1,Y+dy-r+3,r*2+2,r*2-2); g.fillStyle=bc[c]; g.fillRect(X+dx-r,Y+dy-r+4,r*2,r*2-4); }
       if(mcFlag('tbc')){ const c=pxSprite('stick'); g.drawImage(c,X-4,Y-40,c.width*2,c.height*2); } },
-    talk:()=>{ if(mcFlag('tbc')){ say(['* Bushy\'s stick is still in the bush. Something is humming deep inside the platform...']); return; }
-     if(!P.keys.includes('mc_stick')){ say(['* A bush on a very weird platform. The platform is humming.','* There is a little hole in the middle of the bush... like something should go in it.','* (A stick, maybe? Someone in the Toy World had lots of sticks...)']); return; }
-     mcSet('tbc'); mcSave(); mcCut([{img:'mcp_18',lines:['* You take out BUSHY\'S WOOD STICK.','* The bush on the weird platform rustles... like it was waiting for you.','* You push the stick into the bush.','* ...','* The whole platform starts to glow.']},
+    talk:()=>{ if(mcFlag('tbc')){ say(['* The wood stick is still in the bush. Something is humming deep inside the platform...']); return; }
+     if(!P.keys.includes('mc_stick')){ say(['* A bush on a very weird platform. The platform is humming.','* There is a little hole in the middle of the bush... like something should go in it.','* (A stick, maybe? Something rolled out of A-BOMB\'s truck in the Toy World...)']); return; }
+     mcSet('tbc'); mcSave(); mcCut([{img:'mcp_18',lines:['* You take out the WOOD STICK from A-BOMB\'s truck.','* The bush on the weird platform rustles... like it was waiting for you.','* You push the stick into the bush.','* ...','* The whole platform starts to glow.']},
        {draw:()=>{ g.fillStyle='#000'; g.fillRect(0,0,VW,VH); for(let i=0;i<40;i++){ g.fillStyle='#fff'; g.fillRect((i*97)%VW,(i*53)%140,1,1); } txt('TO BE CONTINUED...',200,70,'#ffe14a',20,'center'); mcDrawShards(176,110); txt('Multiverse Chaos will continue in a future update!',200,130,'#fff',8,'center'); },
         lines:['* TO BE CONTINUED...','* (Your game is saved. Alejandro has a LOT more to add!)']}],()=>{}); }},
    {k:'machine',x:80,y:200,solid:14,trad:34,draw:(o,X,Y)=>sprite('mc_npc',Math.floor(T*3)%2,1,X,Y,1),talk:()=>mcNextChapter()}]},
