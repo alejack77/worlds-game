@@ -2517,7 +2517,7 @@ function mcDraw(){ const r=mcRoom(), st=mcRS(), ch=mcCh(), pal=ch.pal;
   if(MCS.toast) txt(MCS.toast.msg,200,150,'#ffe08a',10,'center');
   drawAreaBanner(); drawEnc(P.x,P.y); if(MCS.pad) mcPadDraw(); drawDialog(12,166,376,66,owFace); drawMenu(); }
 const MC_SHARDS=[['pink','#ff78c8'],['blue','#325ae6'],['black','#2a2a34'],['white','#f4f4ff'],['green','#38c050'],['mystery','#c8c8d8']];
-function mcDrawShards(x,y){ const s=MCS.shards||{}; let i=0; for(const [k,col] of MC_SHARDS){ const n=s[k]||0; if(!n&&k!=='pink'&&k!=='blue') continue; for(let j=0;j<(k==='mystery'?1:2);j++){ g.fillStyle='#000'; g.fillRect(x+i*7-1,y-1,6,9); g.fillStyle=j<n?col:'#333'; g.fillRect(x+i*7,y,4,7); if(k==='black'&&j<n){ g.fillStyle='#b8a8d8'; g.fillRect(x+i*7,y,4,1); g.fillRect(x+i*7,y,1,7); } i++; } } }
+function mcDrawShards(x,y){ const s=MCS.shards||{}; let i=0; for(const [k,col] of MC_SHARDS){ const n=s[k]||0; if(!n&&k!=='pink'&&k!=='blue') continue; for(let j=0;j<((k==='pink'||k==='blue')?2:1);j++){ g.fillStyle='#000'; g.fillRect(x+i*7-1,y-1,6,9); g.fillStyle=j<n?col:'#333'; g.fillRect(x+i*7,y,4,7); if(k==='black'&&j<n){ g.fillStyle='#b8a8d8'; g.fillRect(x+i*7,y,4,1); g.fillRect(x+i*7,y,1,7); } i++; } } }
 function mcDrawObj(o){ const X=Math.round(o.x), Y=Math.round(o.y);
   if(o.draw) return o.draw(o,X,Y);
   if(o.spr) return sprite(o.spr[0],o.spr2?Math.floor(T*2)%2+o.spr[1]:o.spr[1],o.spr[2]||0,X,Y,o.s||1);
@@ -3893,6 +3893,181 @@ MC_CH[7]={title:'WOOD WORLD',ready:true,pal:MC_WOOD_PAL,pool:['plankster','hootc
   objs:[mcTreeSpot(1,140,92),mcTreeSpot(2,220,76),mcTreeSpot(3,300,92),
    {k:'sign',x:220,y:170,talk:()=>say(['* BEAVER NOTE: "Plant a seed in each of the three big stumps. Talk to a stump to plant."'])},
    {k:'machine',x:80,y:200,solid:14,trad:34,draw:(o,X,Y)=>sprite('mc_npc',Math.floor(T*3)%2,1,X,Y,1),talk:()=>{ if((MCS.shards.blue||0)<2){ say(['* The machine creaks. It needs the BLUE LEAF\'s power...','* (Save the trees first! Plant seeds in the three stumps.)']); return; } mcNextChapter(); }}]},
+ ]};
+
+// ---------- MULTIVERSE CHAOS CHAPTER 8: MUSIC WORLD (enemies are music notes, song-pad puzzle, wake the GIANT PHONE, it blasts hard music -> WHITE SHARD) ----------
+Object.assign(PXS,{
+ note8:[{n:'#ffd23a',d:'#8a6a10'},["..nn","..nd","..n.","..n.","nnn.","nnn."]],
+ note8b:[{n:'#5ae0ff',d:'#1a6a8a'},["..nn","..nd","..n.","..n.","nnn.","nnn."]],
+ note8p:[{n:'#ff5aa0',d:'#8a1a4a'},["..nn","..nd","..n.","..n.","nnn.","nnn."]],
+ sharpS:[{s:'#d03060'},[".s.s",".s.s","ssss",".s.s","ssss",".s.s"]],
+ buzz:[{w:'#ffffff',c:'#5ae0ff'},["c.c","wcw","c.c"]],
+ rest:[{k:'#2a1e3e',w:'#c8b8ff'},[".w.","w.w",".w.","w..",".w."]],
+ shardW:[{s:'#f4f4ff',h:'#ffffff',q:'#a8a8c8'},[".h.","hsq","sqs",".s."]],
+});
+// --- the beat: the giant phone plays REALLY hard music while you dodge
+const PH_MEL=[523,659,784,659,880,784,659,523,587,698,880,698,988,880,698,587];
+function phMusic(b,dt){ const v=b.v||(b.v={}); v.mt=(v.mt||0)-dt; if(v.mt>0) return; v.mt+=0.16; const i=v.mi=((v.mi||0)+1)%16;
+  if(i%4===0) beep(60,0.12,'square',0.07); if(i%4===2) beep(180,0.06,'sawtooth',0.05); beep(1400,0.015,'square',0.02); if(i%2===0) beep(PH_MEL[i],0.1,'triangle',0.035); }
+// --- enemy moves: qv_ quaver, sh_ sharp
+Object.assign(EA,{
+ qv_bounce(b,dt,bx){ if(T6(b,'qb',dt,0.2)){ SET6(b,'qb',0.75); const l=b.v.qbl=!b.v.qbl; PX(b,{n:'note8',s:2,x:l?L_(bx)+6:R_(bx)-6,y:T_(bx)+4,vx:(l?1:-1)*36,vy:0,ay:110,floor:0.85,floorN:3,wait:0.35,r:2.5,life:3.2}); } },
+ qv_wave(b,dt,bx){ if(T6(b,'qw',dt,0.3)){ SET6(b,'qw',0.9); const y=clamp(b.soul.y+rnd(-24,24),T_(bx)+8,B_(bx)-8); PX(b,{n:'note8b',s:2,x:L_(bx)-4,y,vx:52,wy:70,wf:5,wait:0.4,r:2.5,life:3.4}); } },
+ qv_chord(b,dt,bx){ if(T6(b,'qc',dt,0.3)){ SET6(b,'qc',1.4); const x0=rnd(L_(bx)+14,R_(bx)-44); for(let k=0;k<3;k++) PX(b,{n:'note8p',s:2,x:x0+k*15,y:T_(bx)-3-k*10,vy:48,wait:0.4,r:2.5,life:3}); } },
+ sh_cross(b,dt,bx){ if(T6(b,'sc',dt,0.3)){ SET6(b,'sc',1.0); const x=rnd(L_(bx)+12,R_(bx)-12), y=T_(bx)+6, a=aimA(b,x,y); PX(b,{n:'sharpS',s:2,x,y,vx:Math.cos(a)*58,vy:Math.sin(a)*58,wait:0.5,r:3,life:2.6}); } },
+ sh_grid(b,dt,bx){ if(T6(b,'sg',dt,0.4)){ SET6(b,'sg',1.5); const v=b.v.sgv=!b.v.sgv; if(v){ const w=12, x=clamp(b.soul.x-w/2+rnd(-14,14),L_(bx)+2,R_(bx)-w-2); ZONE(b,{x,y:T_(bx),w,h:bx[3],warn:0.85,act:0.3,col:'#d03060',edge:'#ff7aa0',wcol:'#ff9ac0'}); } else { const h=12, y=clamp(b.soul.y-h/2+rnd(-12,12),T_(bx)+2,B_(bx)-h-2); ZONE(b,{x:L_(bx),y,w:bx[2],h,warn:0.85,act:0.3,col:'#d03060',edge:'#ff7aa0',wcol:'#ff9ac0'}); } } },
+ sh_spin(b,dt,bx){ if(T6(b,'ss',dt,0.3)){ SET6(b,'ss',1.5); const cx=rnd(L_(bx)+24,R_(bx)-24), cy=T_(bx)+10, o=Math.random(); for(let i=0;i<6;i++){ const a=(i+o)/6*Math.PI*2; PX(b,{n:'sharpS',x:cx,y:cy,vx:Math.cos(a)*42,vy:Math.sin(a)*42,wait:0.45,r:2.5,life:2.4}); } } },
+});
+Object.assign(PATTERNS,{
+ qv_a:(b,dt,bx)=>EA.qv_bounce(b,dt,bx), qv_b:(b,dt,bx)=>EA.qv_wave(b,dt,bx), qv_c:(b,dt,bx)=>EA.qv_chord(b,dt,bx),
+ sh_a:(b,dt,bx)=>EA.sh_cross(b,dt,bx), sh_b:(b,dt,bx)=>EA.sh_grid(b,dt,bx), sh_c:(b,dt,bx)=>EA.sh_spin(b,dt,bx),
+});
+ENEMIES.push(
+ {id:'quaver',name:'Quaver',hp:48,atk:4,col:'#3a2a5a',pattern:'qv_a',attacks:['qv_a','qv_b','qv_c'],spareAfter:2,gold:30,exp:26,sheet:'en_quaver',
+  intro:'* A QUAVER hops in! Do-be-do-be-DOO!',intros:['* A QUAVER hops in! Do-be-do-be-DOO!','* A QUAVER hums one note. Over and over.'],
+  check:'* QUAVER - ATK 4 DEF 3\n* An eighth note with legs. It only lives for half a beat at a time.',
+  acts:[['Hum along','* You hum along. The Quaver is so happy it does a little spin.'],['Clap the beat','* You clap on the beat. Clap. Clap. CLAP. It dances!'],['Sing off-key','* You sing really off-key. The Quaver covers its ears and laughs.']],
+  flavor:['* Do-be-doo.','* The Quaver is tapping its foot.','* It smells like a brand new guitar.'],hurt:['* BWONG!'],low:['* The Quaver is going out of tune.'],
+  spareLines:['* The Quaver hops off to join a song.'],defeatLines:['* The Quaver fades out like the end of a song.']},
+ {id:'sharp',name:'Sharp',hp:46,atk:4,col:'#d03060',pattern:'sh_a',attacks:['sh_a','sh_b','sh_c'],spareAfter:2,gold:30,exp:26,sheet:'en_sharp',
+  intro:'* A SHARP marches up! It is very pointy.',intros:['* A SHARP marches up! It is very pointy.','* A SHARP says: "You are a little FLAT today."'],
+  check:'* SHARP - ATK 4 DEF 3\n* A sharp sign. Makes every note a little bit higher. And a little bit meaner.',
+  acts:[['Call it a hashtag','* You call it a hashtag. It gets VERY offended. Then it laughs.'],['Play it flat','* You play a flat note. The Sharp relaxes a little.'],['Tic-tac-toe','* You play tic-tac-toe on its body. You win. It is a good sport.']],
+  flavor:['* Shhhharp.','* The Sharp is standing on its pointy legs.','* It smells like a piano lesson.'],hurt:['* TWANG!'],low:['* The Sharp is going a bit flat.'],
+  spareLines:['* The Sharp marches off to find a song in a higher key.'],defeatLines:['* The Sharp falls apart into four little sticks.']});
+// --- THE GIANT PHONE: asleep on the big stage; wake it and it blasts REALLY hard music
+Object.assign(BA,{
+ ph_beat(b,dt,bx,m=1){ phMusic(b,dt); if(T6(b,'pa',dt,0.35)){ SET6(b,'pa',1.5*m); const cx=rnd(L_(bx)+24,R_(bx)-24), cy=T_(bx)+8, o=Math.random(); for(let i=0;i<8;i++){ const a=(i+o)/8*Math.PI*2; PX(b,{n:['note8','note8b','note8p'][i%3],x:cx,y:cy,vx:Math.cos(a)*40,vy:Math.sin(a)*40,wait:0.45,r:2.5,life:2.6}); } } },
+ ph_eq(b,dt,bx,m=1){ phMusic(b,dt); if(T6(b,'pe',dt,0.4)){ SET6(b,'pe',1.25*m); const w=14, x=clamp(b.soul.x-w/2+rnd(-14,14),L_(bx)+2,R_(bx)-w-2), h=Math.round(bx[3]*rnd(0.55,1)); ZONE(b,{x,y:B_(bx)-h,w,h,warn:0.85,act:0.3,col:['#ff3c8c','#3cdcff','#ffdc3c','#8cff5a'][Math.floor(Math.random()*4)],edge:'#ffffff',wcol:'#ffffff'}); } },
+ ph_notes(b,dt,bx,m=1){ phMusic(b,dt); if(T6(b,'pn',dt,0.25)){ SET6(b,'pn',0.62*m); const l=b.v.pnl=!b.v.pnl; PX(b,{n:l?'note8':'note8b',s:2,x:l?L_(bx)-4:R_(bx)+4,y:rnd(T_(bx)+10,B_(bx)-10),vx:(l?1:-1)*50,wy:60,wf:5,ph:Math.random()*6,wait:0.4,r:2.5,life:3.6}); } },
+ ph_ring(b,dt,bx,m=1){ phMusic(b,dt); if(T6(b,'pr',dt,0.3)){ SET6(b,'pr',1.35*m); const x=rnd(L_(bx)+10,R_(bx)-10), y=T_(bx)+4; for(const o of [-0.3,0,0.3]){ const a=aimA(b,x,y)+o; PX(b,{n:'buzz',s:2,x,y,vx:Math.cos(a)*54,vy:Math.sin(a)*54,wx:40,wf:22,wait:0.55,r:2.5,life:2.6}); } } },
+});
+Object.assign(PATTERNS,{
+ ph_a:mix(['ph_beat'],['ph_notes',2.2]), ph_b:mix(['ph_eq'],['ph_notes',2.3]), ph_c:mix(['ph_ring'],['ph_beat',1.7]), ph_d:mix(['ph_eq',1.3],['ph_ring',1.6]),
+ ph_rage:mix(['ph_eq',1.45],['ph_beat',1.7],['ph_notes',2.6]),
+});
+SPARE_NEED.giantphone={steps:[['Turn it down',3],['Dance',2],['Plug in charger',2]],mercy:5,hint:['The music is WAY too loud. Maybe find the volume button?','The phone just wants someone to enjoy its music. Show it some moves!','The battery icon is blinking red. It is grumpy because it is tired.']};
+MC_BOSS.giantphone=mkBoss({id:'giantphone',name:'THE GIANT PHONE',sheet:'b_giantphone',fw:128,hp:155,atk:4,col:'#ff3c8c',mc:true,mcBoss:'boss_giantphone',bg:'music',gold:160,spareGold:120,
+  attacks:['ph_a','ph_b','ph_c'],attacks2:['ph_d','ph_c','ph_b','ph_a'],rage:'ph_rage',pattern:'ph_a',
+  intros:['* THE GIANT PHONE turns its volume to 100. BOOM BOOM BOOM!'],check:'* THE GIANT PHONE - ATK 4 DEF 4\n* The biggest phone in Music World. Its ringtone can knock over buildings.',
+  acts:[['Turn it down','* You climb up and press the volume-down button. Click. Click. Click.','* GIANT PHONE: HEY! ...oh. Wait. I can hear myself think now.'],['Dance','* You do your best dance moves to the beat. They are... something.','* GIANT PHONE: Ha! HA HA! Somebody is finally DANCING to my music!'],['Plug in charger','* You find a giant charger and plug it in. BZZT.','* GIANT PHONE: Ohhhh. 1% battery... 2%... I was SO grumpy. I was just tired.']],
+  hurt:['* CRACK! A new crack on the screen!','* BZZT!'],low:['* THE GIANT PHONE: LOW BATTERY.'],
+  thresholds:[[0.6,['* GIANT PHONE: TURN IT UP! VOLUME 200!']],[0.3,['* GIANT PHONE: THIS IS MY FINAL SONG! THE LOUDEST ONE!']]],
+  taunts:['GIANT PHONE: BOOM! BOOM! BOOM!','GIANT PHONE: WHO WOKE ME UP?!','GIANT PHONE: NEW NOTIFICATION: YOU LOSE!','GIANT PHONE: Can you even hear me over the music?!'],
+  spareLines:['* You spared THE GIANT PHONE.','* GIANT PHONE: ...that was the best concert I ever played.','* It switches to a soft, nice song. Ahh.'],
+  defeatLines:['* THE GIANT PHONE\'s screen goes black.','* "Shutting down..." The music stops.'],
+  onEnd:(k)=>{ mcRS().solved=true; MC_RC=null; MCS.shards.white=1; mcSet('phone_done'); fanfareSmall(); mcSave();
+    mcCut([{img:'mcp_24',lines:[k==='spare'?'* The Giant Phone plays a quiet little thank-you song.':'* The Giant Phone flickers back on, very quietly.','* GIANT PHONE: You... were the only one who listened. Here.','* A shiny white thing slides out of its charging port.']},
+      {img:'mcp_24',draw:()=>{ g.fillStyle='rgba(0,0,0,.6)'; g.fillRect(0,96,VW,60); const c=pxSprite('shardW'); g.drawImage(c,200-c.width*4,100,c.width*8,c.height*8); txt('WHITE SHARD',200,138,'#ffffff',14,'center'); },
+       lines:['* You got the WHITE SHARD!','* It hums a little song in your hand.']}],()=>say(['* The stage curtain opens to the east. THE ENCORE is that way.'])); }});
+MC_BG.music=['#2a1050','#0a0418',(b)=>{ for(let k=0;k<20;k++){ const h=10+Math.abs(Math.sin(b.t*6+k*1.3))*50; g.fillStyle=['#ff3c8c','#3cdcff','#ffdc3c','#8cff5a'][k%4]; g.fillRect(k*21,110-h,14,h); } g.fillStyle='rgba(255,255,255,.5)'; for(const y of [20,28,36,44,52]) g.fillRect(0,y,VW,1); }];
+const MC_MUSIC_PAL={floor:'#3a2a5a',floor2:'#423064',wall:'#14102a',wallHi:'#3c2c6a',wall2:'#0a0818',speck:'#5a4a8a',water:'#2a5a8a',waterHi:'#6aa0d0',plate:'#ffd23a',block:'#5a4a8a',blockHi:'#8a7ac0',gate:'#14102a',pads:['#e04848','#3a8ae0','#e0c040','#50c060']};
+function mcMusicProp(t,X,Y,v){ const Q=(x,y,w,h,c)=>{ t.fillStyle=c; t.fillRect(X+x,Y+y,w,h); }; const k=Math.floor(v*3);
+  if(k===0){ Q(0,0,16,16,'#000'); Q(1,1,14,14,'#f0f0f0'); for(const x of [3,7,11]) Q(x,1,3,9,'#1a1a1a'); return; }                       // piano keys
+  if(k===1){ Q(3,1,10,15,'#000'); Q(4,2,8,13,'#46465a'); Q(5,3,6,6,'#14141e'); Q(6,4,4,4,'#5a5a78'); Q(6,10,4,4,'#14141e'); return; }  // speaker
+  Q(7,0,2,13,'#000'); Q(2,10,7,6,'#000'); Q(3,11,5,4,'#ffd23a'); Q(7,1,1,11,'#ffd23a'); Q(8,1,5,3,'#ffd23a'); }                          // big note
+function mcMusicDeco(t,X,Y,v){ t.fillStyle=v<0.5?'#ffd23a':'#5ae0ff'; t.fillRect(X+5,Y+9,4,3); t.fillRect(X+8,Y+3,1,7); }
+function mcMusicOverlay(r){ for(let i=0;i<10;i++){ const x=(i*53+T*20)%VW, y=(i*31)%200+20+Math.sin(T*2+i)*6; const c=pxSprite(['note8','note8b','note8p'][i%3]); g.globalAlpha=0.35; g.drawImage(c,x,y,c.width*2,c.height*2); g.globalAlpha=1; } }
+MC_CH[8]={title:'MUSIC WORLD',ready:true,pal:MC_MUSIC_PAL,pool:['quaver','sharp'],lv:9,bg:'music',prop:mcMusicProp,deco:mcMusicDeco,overlay:mcMusicOverlay,
+ intro:[{img:'mcp_23',title:'CHAPTER 8',sub:'MUSIC WORLD',lines:['* The machine lands on a giant piano. DONNNG!','* Every step you take plays a note. The air is full of music.','* Even the enemies here are music notes.','* Far away, something huge is snoring. ZZZ... ZZZ...']}],
+ rooms:[
+ {name:'MELODY PLAZA',banner:true,start:[120,124],w:null,map:[
+  "#########################",
+  "#T.....................T#",
+  "#.......,...........,...#",
+  "#..T.................T..#",
+  "#.......................#",
+  "#........................",
+  "#........................",
+  "#........................",
+  "#.......................#",
+  "#..,.......T.......,....#",
+  "#.......................#",
+  "#....T.............T....#",
+  "#.....,.......,.........#",
+  "#T.....................T#",
+  "#########################"],
+  objs:[mcMachineObj(72,124,()=>say(['* The machine goes "bweeeoww" like a sad trombone. Out of energy.','* It needs a shard\'s power... maybe there is one in Music World?'])),
+   {k:'sign',x:200,y:44,talk:()=>say(['* A sign shaped like a guitar: "MELODY PLAZA. PLEASE DO NOT WAKE THE PHONE."'])},
+   {k:'npc',x:240,y:170,solid:10,draw:(o,X,Y)=>sprite('mc_npc3',0+Math.floor(T*2)%2,1,X,Y,0.75),talk:()=>say(['* METRONOME: Tick. Tock. Tick. Hello. Tock.','* METRONOME: Past the song pads sleeps THE GIANT PHONE. Tick.','* METRONOME: If it wakes up, it plays the LOUDEST music in the multiverse. Tock.','* METRONOME: ...but it has something shiny inside. Tick. Your call.'])},
+   {k:'npc',x:330,y:70,solid:8,draw:(o,X,Y)=>sprite('mc_npc3',2+Math.floor(T*3)%2,1,X,Y,0.6),talk:()=>say(['* LIL WOOFER: boom. boom. boom.','* LIL WOOFER: (that\'s all it says. it is a very small speaker.)'])}]},
+ {name:'STAFF STREET',banner:true,enc:true,map:[
+  "#########################",
+  "#TTTTTTTTTTTTTTTTTTTTTTT#",
+  "#.......,.........,.....#",
+  "#.......................#",
+  "#....T......T......T....#",
+  "#........................",
+  ".........................",
+  ".........................",
+  ".........................",
+  "#.......................#",
+  "#....T......T......T....#",
+  "#.......................#",
+  "#.......,.........,.....#",
+  "#TTTTTTTTTTTTTTTTTTTTTTT#",
+  "#########################"],
+  objs:[{k:'walker',x:160,y:60,x0:100,x1:300,sp:34,en:'quaver',s:0.5,touch:(o)=>mcFight({...pickEnemy(['quaver'],9),mc:true},o)},
+   {k:'walker',x:250,y:188,x0:120,x1:330,sp:38,en:'sharp',s:0.5,touch:(o)=>mcFight({...pickEnemy(['sharp'],9),mc:true},o)},
+   {k:'sign',x:40,y:60,talk:()=>say(['* The street is painted like music paper. Five long lines.','* The notes walking on it are alive. And grumpy.'])}]},
+ {name:'THE SONG PADS',banner:true,seq:[3,2,1,4],notes:[262,330,392,523],solvedMsg:'* DO-MI-SO-DOOO! The music gate slides open!',map:[
+  "#########################",
+  "#T....................#T#",
+  "#.....................#.#",
+  "#.....................#.#",
+  "#.....1.......2.......#.#",
+  "#.....................#.#",
+  "......................G..",
+  "......................G..",
+  "......................G..",
+  "#.....................#.#",
+  "#.....3.......4.......#.#",
+  "#.....................#.#",
+  "#.....................#.#",
+  "#T....................#T#",
+  "#########################"],
+  objs:[{k:'sign',x:40,y:44,talk:()=>say(['* SONG SHEET: "To open the gate, play the Wake-Up Song!"','* "SO... MI... DO... and then the HIGH DO!"','* (Each pad plays one note. Step on them and listen.)'])},
+   {k:'npc',x:330,y:200,solid:8,draw:(o,X,Y)=>sprite('mc_npc3',0+Math.floor(T*2)%2,1,X,Y,0.6),talk:()=>say(['* METRONOME: Tick. The low DO is up-left. Tock.','* METRONOME: The HIGH DO is the last pad, down-right. Tick.'])}]},
+ {name:'THE BIG STAGE',banner:true,map:[
+  "#########################",
+  "#T.......T.....T.......T#",
+  "#.......................#",
+  "#.......................#",
+  "#..T.................T..#",
+  "#......................##",
+  ".......................G.",
+  ".......................G.",
+  ".......................G.",
+  "#......................##",
+  "#..T.................T..#",
+  "#.......................#",
+  "#.......................#",
+  "#T.......T.....T.......T#",
+  "#########################"],
+  objs:[{k:'npc',x:250,y:124,solid:22,trad:44,hide:()=>mcFlag('boss_giantphone')||mcFlag('phone_done'),
+    draw:(o,X,Y)=>{ g.fillStyle='#000'; g.fillRect(X-24,Y-60,48,62); g.fillStyle='#3c3c4a'; g.fillRect(X-22,Y-58,44,58); g.fillStyle='#0a0a12'; g.fillRect(X-19,Y-50,38,40); g.fillStyle='#5a5a6a'; g.fillRect(X-3,Y-7,6,4);
+      txt('Z',X+18+Math.sin(T*2)*3,Y-64-(T*10)%12,'#c8b8ff',10,'center'); txt('z',X+30,Y-76-(T*8)%10,'#c8b8ff',8,'center'); txt('ZZZ',X,Y-30,'#40405a',8,'center'); },
+    talk:(o)=>{ mcCut([{img:'mcp_24',lines:['* A GIANT PHONE is asleep on the stage. Its screen says "DO NOT DISTURB".','* There is a big round POWER button on the side.','* You push it. ...click.','* RIIIIIING!!! The screen lights up. Two angry eyes open.','* GIANT PHONE: WHO. WOKE. ME. UP?!','* GIANT PHONE: FINE. YOU WANT MUSIC? HERE COMES THE HARDEST SONG EVER!']}],()=>mcFight(MC_BOSS.giantphone,o)); }},
+   {k:'sign',x:60,y:44,talk:()=>say(['* A poster: "TONIGHT: THE GIANT PHONE. (ASLEEP. SHHH.)"'])}]},
+ {name:'THE ENCORE',banner:true,e:null,map:[
+  "#########################",
+  "#T.....................T#",
+  "#.......................#",
+  "#...,.........,.......,.#",
+  "#.......................#",
+  "#.......................#",
+  "........................#",
+  "........................#",
+  "........................#",
+  "#.......................#",
+  "#....,........,.........#",
+  "#.......................#",
+  "#.......................#",
+  "#T.....................T#",
+  "#########################"],
+  objs:[{k:'npc',x:200,y:100,solid:10,draw:(o,X,Y)=>sprite('mc_npc3',2+Math.floor(T*4)%2,1,X,Y+Math.round(Math.sin(T*8)*2),0.75),talk:()=>say(['* LIL WOOFER: boom. boom. BOOM!','* (Lil Woofer is dancing. The whole room is dancing.)'])},
+   {k:'npc',x:280,y:150,solid:10,draw:(o,X,Y)=>sprite('mc_npc3',0+Math.floor(T*4)%2,1,X,Y,0.75),talk:()=>say(['* METRONOME: Tick! Tock! The phone plays nice songs now.','* METRONOME: Thank you, traveler. Tick.'])},
+   {k:'machine',x:80,y:200,solid:14,trad:34,draw:(o,X,Y)=>sprite('mc_npc',Math.floor(T*3)%2,1,X,Y,1),talk:()=>{ if(!(MCS.shards.white>0)){ say(['* The machine plays a sad trombone. It needs the WHITE SHARD.','* (The Giant Phone has it... wake it up!)']); return; } mcNextChapter(); }}]},
  ]};
 
 // ======================= v8: THE SECRET LAB - a real 3-D first-person maze (raycaster) =======================
