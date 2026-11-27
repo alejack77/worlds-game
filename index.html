@@ -575,7 +575,8 @@ function hexA(h,a){ const n=parseInt(h.slice(1),16); return `rgba(${n>>16&255},$
 function nextDun(){ return DUNS.findIndex((d,i)=>!dunDone[i]); }
 function drawQuestMarker(){
   if(!LEAFY.questGiven||dialog||ENC) return;
-  const nd=nextDun(); const tgt=questTarget(); const label=nd<0?'LEAFY':DUNS[nd].title, colA=nd<0?'#bfe86a':LEAVES[DUNS[nd].leaf].col;
+  const nd=nextDun(); if(nd<0) return;   // v11d: no more arrow after the 8 dungeons (it pointed to the Big Paper boss but said LEAFY)
+  const tgt=questTarget(); const label=nd<0?'LEAFY':DUNS[nd].title, colA=nd<0?'#bfe86a':LEAVES[DUNS[nd].leaf].col;
   const sx=tgt.x-cam.x, sy=tgt.y-56-cam.y, bob=Math.round(Math.sin(T*5)*2);
   const col=Math.floor(T*4)%2?colA:'#ffffff';
   if(sx>8&&sx<VW-8&&sy>10&&sy<VH){ g.fillStyle='#000'; g.fillRect(sx-5,sy-9+bob,11,7); g.fillRect(sx-3,sy-2+bob,7,3); g.fillRect(sx-1,sy+1+bob,3,2);
@@ -1966,7 +1967,8 @@ function drawTitle(){
   if(Math.floor(T*2)%2) txt(IS_TOUCH?'TAP THE PORTAL':'PRESS Z / ENTER',200,222,'#ff0',10,'center');
 }
 const MC_KEY='worlds_multiverse_unlocked';
-function mcUnlocked(){ try{ return localStorage.getItem(MC_KEY)==='1'; }catch(e){ return false; } }
+// v11d: Multiverse Chaos is open from the very start (Alejandro: playable before beating Leafy Green World). The old flag is still written/kept for old saves.
+function mcUnlocked(){ return true; }
 function unlockMC(){ try{ localStorage.setItem(MC_KEY,'1'); }catch(e){} }
 let WS={sel:0,msg:null,mt:0};
 const CARDS=[[22,34,170,170],[208,34,170,170]];
