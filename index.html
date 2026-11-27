@@ -1637,8 +1637,8 @@ const ULA={
   // 8. YOUR BEST NIGHTMARE: GROVE - everything at once
   nightmare(b){ const l=UL_(b,0,'N'), p=b.ulPh;
     if(l.ev('box',0)){ b.target=[150,108,100,74]; ulFrame(2,0.8); }
-    if(b.t<7.8){ ULA.cyclone(b,0,'n1',{rings:3});
-      if(l.every('stub',0.6,7.6,0.6)){ const T=b.target; for(let k=0;k<2;k++) U.spike('b',T[0]+5+10*Math.floor(rnd(0,T[2]/10)),12,0.3,0.35); } }
+    if(b.t<7.8){ ULA.cyclone(b,0,'n1',{rings:2});
+      if(l.every('stub',0.6,7.6,0.6)){ const T=b.target; for(let k=0;k<1;k++) U.spike('b',T[0]+5+10*Math.floor(rnd(0,T[2]/10)),12,0.3,0.35); } }
     else if(b.t<15.5){ const T=b.target, s=b.soul;
       if(l.ev('bl1',8.3)){ U.blaster(T[0]-8,T[1]-8,Math.atan2(s.y-T[1]+8,s.x-T[0]+8)-0.35,0.45,1.0,0.5); U.blaster(T[0]+T[2]+8,T[1]+T[3]+8,Math.atan2(s.y-T[1]-T[3]-8,s.x-T[0]-T[2]-8)-0.35,0.45,1.0,0.5); }
       if(b.t>9.4&&b.t<10.8) ULA.fist(b,9.5-0.35,'nf');
@@ -1651,7 +1651,7 @@ const ULA={
     else { if(l.ev('box3',34.4)){ b.target=[150,108,100,74]; b.bul=b.bul.filter(u=>u.k!=='uwall'); }
       const T=[150,108,100,74], cx=200, cy=145;
       if(l.ev('cr',35.0)){ ulSide('t',cx-15,0.4,0.4); ulSide('t',cx+15,0.4,0.4); ulSide('l',cy-15,0.4,0.4); ulSide('l',cy+15,0.4,0.4); ulFrame(2,0.6); }
-      if(l.ev('hs',35.45)){ const gx=cx-26, gw=24; U.palm(T[0],T[1],gx-gw/2-T[0],T[3],0.5,0.35); U.palm(gx+gw/2,T[1],T[0]+T[2]-(gx+gw/2),T[3],0.5,0.35); } } },
+      if(l.ev('hs',35.45)){ const gx=cx-26, gw=36; U.palm(T[0],T[1],gx-gw/2-T[0],T[3],0.5,0.35); U.palm(gx+gw/2,T[1],T[0]+T[2]-(gx+gw/2),T[3],0.5,0.35); } } },
 };
 PATTERNS.ul_cyclone=(b)=>ULA.cyclone(b,0,'');  PATTERNS.ul_cage=(b)=>ULA.cage(b,0,'');  PATTERNS.ul_fist=(b)=>ULA.fist(b,0,'');
 PATTERNS.ul_blasters=(b)=>ULA.blasters(b,0,''); PATTERNS.ul_whip=(b)=>ULA.whip(b,0,''); PATTERNS.ul_leaves8=(b)=>ULA.leaves8(b,0,'');
@@ -5201,6 +5201,24 @@ if(MC_CH[3]) for(const r of [0,1,2,3]){ const rm=MC_CH[3].rooms[r]; for(const o 
     const swap=!MCS.lab&&!MCS.br&&IMG.mc_guy, k=IMG.knight; if(swap) IMG.knight=IMG.mc_guy; try{ _md(); } finally{ if(swap) IMG.knight=k; }
     if(MCS.lab&&typeof DOOM!=='undefined'&&DOOM&&DOOM.dieT>0.6){ footLostDraw((DOOM.dieT-0.6)/1.8); }
     if(MCS.foot) footHUD(); }; }
+
+// v11c: ULTIMATE LEAFY "YOUR BEST NIGHTMARE: GROVE" made easier (Alejandro: "make ultimate leafy nightmare attack easier").
+// Only ul_nightmare changes (Ultimate Leafy phase 3 + Omega phase 3 use the same attack). Other attacks untouched.
+//  - the attack's own clock runs at 65% speed (35% fewer spawns per second) and its bullets move/charge/warn at 65% speed
+//  - the longest parts are cut: cyclone 7.8s->4.2s of attack-time, leaves 7.5->4.1, WITHER section (10.2) dropped, finale trimmed
+//    => 39.6s -> 28.6s real time
+//  - fewer bullets / wider gaps (template: cyclone 3 rings->2, floor stubs 2->1 per wave, finale palm gap 24->36px)
+//  - damage per hit 3->2 and wither drain +0.8s->+0.4s (≈ 5 HP -> 3 HP per hit, -40%)
+const UL_NM={rate:0.65,segs:[[0,4.2],[7.8,14.0],[15.5,19.6],[23,24.2],[34.4,36.6]],dmg:2,wither:0.4};
+UL_DUR.ul_nightmare=28.6;
+function ulNmClock(b,dt){ if(b.nmT==null||b.nmLast>b.t){ b.nmT=0; } b.nmLast=b.t; b.nmT+=dt*UL_NM.rate;
+  const S=UL_NM.segs; for(let i=0;i<S.length;i++){ if(b.nmT<S[i][0]){ b.nmT=S[i][0]; b.bul=[]; ulFrame(3,0.5); break; } if(b.nmT<=S[i][1]) return b.nmT; }
+  return Math.min(b.nmT,S[S.length-1][1]); }
+{ const _p=PATTERNS.ul_nightmare; PATTERNS.ul_nightmare=function(b,dt,bx){ const real=b.t; const tau=ulNmClock(b,dt||0); b.t=tau; try{ _p(b,dt,bx); } finally{ b.t=real; } }; }
+{ const _ub=ulBul; ulBul=function(u,dt,bx){ if(B&&B.atk==='ul_nightmare'){ if(!u.nm){ u.nm=1; u.life/=UL_NM.rate; } dt*=UL_NM.rate; } return _ub(u,dt,bx); }; }
+{ const _uh=ulHurt; ulHurt=function(){ const b=B; if(!(b&&b.atk==='ul_nightmare')) return _uh(); if(b.inv>0) return;
+    const dmg=b.defend?1:UL_NM.dmg; b.hits=(b.hits||0)+1; P.hp=Math.max(0,P.hp-dmg); b.inv=0.6; b.shake=0.2; b.wither=Math.min(1.6,(b.wither||0)+(b.defend?0.2:UL_NM.wither)); b.wt=0.4; SFX.hurt();
+    if(P.hp<=0){ state='gameover'; T=0; } }; }
 
 window.__G={encounter:(id,lv)=>{ ENC={t:0.05,cfg:pickEnemy(owPool(),lv||1,id)}; },setEnc:v=>{ENC_ON=v;},get ENC(){return ENC},get encSteps(){return encSteps},setSteps:v=>{encSteps=v;encGrace=0;},DUNS,dunDone,leavesGot,BOSSES,ULT_LEAFY,TIERS,
   enterDun:i=>{ LEAFY.questGiven=true; enterDungeon(i); dialog=null; },solve:()=>{ const st=RS(); st.blocks=st.plates.map(p=>p.slice()); st.solved=true; RCACHE=null; },
