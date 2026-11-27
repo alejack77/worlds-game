@@ -120,16 +120,36 @@ function joyDirs(dx,dy){ const L=Math.hypot(dx,dy), dead=JOY.R*0.28; const want=
     want.right=v[0]>0; want.left=v[0]<0; want.down=v[1]>0; want.up=v[1]<0; }
   for(const k in want){ if(want[k]&&!held[k]) press(k); else if(!want[k]&&held[k]) release(k); } }
 const TAPSTATES=['title','ending','gameover','worlds','soon','finale','files','reveal','mcmenu'];
+// v11b: self-healing joystick. A lost pointerup (iOS multi-touch / system gesture) used to leave JOY.id stale and 'up' held forever.
+function joyRelease(){ JOY.id=null; JOY.tid=null; JOY.dx=0; JOY.dy=0; knob(0,0); for(const k of ['up','down','left','right']) if(held[k]) release(k); placeJoy(JOY.rx,JOY.ry); }
+function joyStale(){ if(JOY.id===null) return false; try{ if(cv.hasPointerCapture&&!cv.hasPointerCapture(JOY.id)) return true; }catch(e){ return true; } return false; }
 cv.addEventListener('pointerdown',e=>{ e.preventDefault();
+  if(IS_TOUCH && JOY.id!==null && e.pointerId!==JOY.id && e.clientX<window.innerWidth*0.5 && joyStale()) joyRelease();
   if(IS_TOUCH && JOY.id===null && e.clientX<window.innerWidth*0.5 && !TAPSTATES.includes(state)){
-    JOY.id=e.pointerId; JOY.cx=e.clientX; JOY.cy=e.clientY; placeJoy(JOY.cx,JOY.cy); knob(0,0); cv.setPointerCapture(e.pointerId); return; }
+    JOY.id=e.pointerId; JOY.tid=null; JOY.dx=0; JOY.dy=0; JOY.cx=e.clientX; JOY.cy=e.clientY; placeJoy(JOY.cx,JOY.cy); knob(0,0); try{ cv.setPointerCapture(e.pointerId); }catch(_){} return; }
   { const dpr=window.devicePixelRatio||1; LASTTAP={x:(e.clientX*dpr-ox)/scale,y:(e.clientY*dpr-oy)/scale,t:performance.now()}; }
   press('a'); setTimeout(()=>release('a'),60);});
 cv.addEventListener('pointermove',e=>{ if(e.pointerId!==JOY.id) return; e.preventDefault();
   let dx=e.clientX-JOY.cx, dy=e.clientY-JOY.cy; const L=Math.hypot(dx,dy); if(L>JOY.R){dx*=JOY.R/L;dy*=JOY.R/L;}
-  knob(dx,dy); joyDirs(dx,dy); });
-const joyEnd=e=>{ if(e.pointerId!==JOY.id) return; JOY.id=null; knob(0,0); joyDirs(0,0); placeJoy(JOY.rx,JOY.ry); };
+  JOY.dx=dx; JOY.dy=dy; knob(dx,dy); joyDirs(dx,dy); });
+const joyEnd=e=>{ if(e.pointerId!==JOY.id) return; joyRelease(); };
 cv.addEventListener('pointerup',joyEnd); cv.addEventListener('pointercancel',joyEnd); cv.addEventListener('lostpointercapture',joyEnd);
+for(const ev of ['pointerup','pointercancel']) window.addEventListener(ev,joyEnd,true);   // even if the canvas never gets it
+// native touch list = ground truth: bind the joystick finger by identifier; if it is gone, release
+function joyTouchCheck(e){ if(JOY.id===null) return; const ts=[...(e.touches||[])];
+  if(JOY.tid==null&&(e.type==='touchstart'||e.type==='touchmove')){ let best=null,bd=40; for(const t of (e.changedTouches||[])){ const d=Math.min(Math.hypot(t.clientX-JOY.cx,t.clientY-JOY.cy),Math.hypot(t.clientX-JOY.cx-(JOY.dx||0),t.clientY-JOY.cy-(JOY.dy||0))); if(d<bd){ bd=d; best=t; } } if(best){ JOY.tid=best.identifier; return; } }
+  if(!ts.length){ joyRelease(); return; }
+  if(JOY.tid!=null&&!ts.some(t=>t.identifier===JOY.tid)) joyRelease(); }
+for(const ev of ['touchstart','touchmove','touchend','touchcancel']) document.addEventListener(ev,joyTouchCheck,{capture:true,passive:true});
+// app switch / notification / lock screen: let go of everything
+function releaseAll(){ joyRelease(); for(const k in held) if(held[k]) release(k); document.querySelectorAll('#pad .b.on').forEach(el=>el.classList.remove('on')); }
+window.addEventListener('blur',releaseAll); window.addEventListener('pagehide',releaseAll); document.addEventListener('visibilitychange',()=>{ if(document.hidden) releaseAll(); });
+// scene / battle / dialog / cutscene change: drop held directions; a finger that is still down keeps steering from where it is
+let JOY_SCENE='';
+function joySceneCheck(){ const k=state+'|'+(typeof B!=='undefined'&&B?1:0)+'|'+(typeof dialog!=='undefined'&&dialog?1:0)+'|'+(typeof MCS!=='undefined'&&MCS?((MCS.cut?1:0)+','+(MCS.lab?1:0)+','+(MCS.br?1:0)+','+(MCS.foot?1:0)):'');
+  if(k===JOY_SCENE) return; const first=!JOY_SCENE; JOY_SCENE=k; if(first||!IS_TOUCH) return;
+  for(const d of ['up','down','left','right']) if(held[d]) release(d);
+  if(JOY.id!==null){ if(joyStale()) joyRelease(); else joyDirs(JOY.dx||0,JOY.dy||0); } }
 
 resize();
 // ---------------- audio ----------------
@@ -2041,6 +2061,7 @@ function frame(now){
     if(loaded<names.length){ g.fillStyle='#000'; g.fillRect(0,0,VW,VH); txt('Loading...',200,110,'#fff',12,'center'); }
     else step(dt);
   }catch(err){ showErr(err); }
+  try{ joySceneCheck(); }catch(_){}
   for(const k in pressed) delete pressed[k];
   ctx.imageSmoothingEnabled=false; ctx.fillStyle='#000'; ctx.fillRect(0,0,cv.width,cv.height);
   ctx.drawImage(buf,0,0,VW,VH,ox,oy,VW*scale,VH*scale);
