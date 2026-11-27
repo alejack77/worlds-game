@@ -875,6 +875,7 @@ function endBattle(kind){
   else if(kind==='win'){ P.exp+=B.cfg.boss?50:10; P.kills++; lines=B.cfg.boss?['* Leafy crumbles into dry little pieces...','* The forest goes very quiet.','* You got 50 EXP.']:[`* You won! ${B.cfg.name} withered away.`,'* You got 10 EXP.']; }
   else if(kind==='spare'){ P.spares++; lines=B.cfg.boss?['* You spared Leafy.','* Leafy: ...you really ARE different.','* Leafy: Fine. I\'ll trust you. For now.']:[`* You spared ${B.cfg.name}.`,'* It wanders off, a little happier.']; }
   else if(kind==='flee'){ lines=['* You ran away safely.']; }
+  if(!lines) lines=['* ...'];
   if(kind!=='flee') lines=[...lines,...lvUp()];
   bMsg(lines,'leave');
 }
@@ -1792,6 +1793,7 @@ function menuItems(){
   return [];
 }
 function updateBattle(dt){
+  if(!B){ if(state==='battle') state=retState||'overworld'; return; }
   const b=B; b.t+=dt; b.inv=Math.max(0,b.inv-dt); b.shake=Math.max(0,b.shake-dt); b.flash=Math.max(0,b.flash-dt);
   for(let i=0;i<4;i++) b.box[i]+= (b.target[i]-b.box[i])*Math.min(1,dt*12);
   if(b.dmgText){ b.dmgText.t-=dt; if(b.dmgText.t<=0) b.dmgText=null; }
