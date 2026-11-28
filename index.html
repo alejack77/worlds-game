@@ -2535,8 +2535,8 @@ function mcRespawn(){ if(MCS.lab){ labRespawnFight(); return; } P.hp=P.max; B=nu
 function mcGravSoul(b,s,dx,dt,bx){ s.vy=(s.vy||0)+560*dt; const floor=bx[1]+bx[3]-5, on=s.y>=floor-0.5;
   if((held.up||pressed.a)&&on) s.vy=-205; s.x=clamp(s.x+dx*82*dt,bx[0]+5,bx[0]+bx[2]-5); s.y+=s.vy*dt; if(s.y>=floor){ s.y=floor; s.vy=0; } if(s.y<bx[1]+5){ s.y=bx[1]+5; s.vy=Math.max(0,s.vy); } }
 function mcInMC(){ return !!(MCS&&B&&retState==='mc'); }
-function mcDmgBonus(){ return state==='battle'&&mcInMC()&&P.keys.includes('mc_arm')?4:0; }
-function mcReflect(){ if(mcInMC()&&P.keys.includes('mc_hull')&&B.hp>1){ B.hp=Math.max(1,B.hp-2); B.dmgText={v:2,t:0.6}; } }
+function mcDmgBonus(){ if(!(state==='battle'&&mcInMC())) return 0; if(P.keys.includes('mc_teeth')) return 5; if(P.keys.includes('mc_arm')) return 4; return 0; }
+function mcReflect(){ if(!mcInMC()||!B||!(B.hp>1)) return; const n=P.keys.includes('mc_skin')?4:P.keys.includes('mc_hull')?2:0; if(n){ B.hp=Math.max(1,B.hp-n); B.dmgText={v:n,t:0.6}; } }
 // ---------- drawing ----------
 function mcRoomCanvas(){ const key=MCS.ch+'_'+MCS.room+'_'+(mcRS().solved?1:0); if(MC_RC&&MC_RC.key===key) return MC_RC.c;
   const c=document.createElement('canvas'); c.width=VW; c.height=VH; const t=c.getContext('2d'); const ch=mcCh(), r=mcRoom(), pal=ch.pal, st=mcRS();
@@ -3139,8 +3139,15 @@ MC_BOSS.abomination=mkBoss({id:'abomination',name:'THE ABOMINATION',sheet:'b_abo
   thresholds:[[0.6,['* The eyes all turn to look at you at once.']],[0.3,['* THE ABOMINATION lets out a broken, terrible wail!']]],
   taunts:['* (Clicking. Lots of clicking.)','* (A sound like a whale crying, played backwards.)','* (All the eyes blink at once.)','* (...it sounds lonely.)'],
   spareLines:['* You spared THE ABOMINATION.','* It curls its legs in... and sings a real whale song.','* A piece of its shell falls off and floats to you.'],defeatLines:['* THE ABOMINATION collapses.','* One giant spider-arm is left behind.'],
-  onEnd:(k)=>{ const arm=k==='win'; P.keys.push(arm?'mc_arm':'mc_hull'); mcSet('abom_fate',k); mcSave(); mcCut([{draw:()=>{ g.fillStyle='#02060e'; g.fillRect(0,0,VW,VH); sprite('b_abomination',0,0,200,150,1,128,128,64,124); txt(arm?'ARM OF THE KILLER':'HULL SHELL',200,170,arm?'#ff5050':'#9fe8ff',16,'center'); txt(arm?'+4 damage on every hit in Multiverse fights':'Whoever hits you takes 2 damage back',200,192,'#fff',8,'center'); },
-     lines:arm?['* You got the ARM OF THE KILLER!','* A huge spider-arm weapon. (+4 damage on every hit in Multiverse Chaos.)']:['* You got the HULL SHELL!','* A shield made from its shell. (Enemies that hit you take 2 damage back.)']}],()=>{ if(MCS.lab){ labFinish(); say(['* The middle room floor CRACKS under your feet...','* You fall... and fall... and land on soft, wet carpet.']); } else say(['* The current behind the den can carry you back up. (Touch the bubbles.)']); }); }});
+  onEnd:(k)=>{ const drop=(MCS&&MCS.flags&&MCS.flags.abom_drop)||k, teeth=drop==='teeth'||drop==='win';
+    if(teeth&&!P.keys.includes('mc_teeth')) P.keys.push('mc_teeth');
+    if(!teeth&&!P.keys.includes('mc_skin')) P.keys.push('mc_skin');
+    mcSet('abom_fate',teeth?'win':'spare'); mcSet('abom_drop',teeth?'teeth':'skin'); mcSave();
+    mcCut([{draw:()=>{ g.fillStyle='#02060e'; g.fillRect(0,0,VW,VH); sprite('b_abomination',0,0,200,150,1,128,128,64,124);
+      txt(teeth?'ABOMINATION TEETH':'ABOMINATION SKIN',200,168,teeth?'#ff7070':'#9fe8ff',14,'center');
+      txt(teeth?'You fitted the teeth into your gun. It hits harder.':'You stretched the skin over your shield. It is much stronger.',200,188,'#fff',8,'center');
+      txt('LUCK  ·  INFINITE AMMO  ·  HP 100',200,206,'#ffe14a',8,'center'); },
+     lines:teeth?['* You got the ABOMINATION TEETH!','* You fitted them into your gun. It hits much harder.']:['* You got the ABOMINATION SKIN!','* You stretched it over your shield. Your shield is much stronger.']}],()=>{ if(MCS.lab){ labFinish(); say(['* The middle room floor CRACKS under your feet...','* You fall... and fall... and land on soft, wet carpet.']); } else say(['* The current behind the den can carry you back up. (Touch the bubbles.)']); }); }});
 MC_BG.sea=['#0c4a7a','#02182c',(b)=>{ for(let i=0;i<14;i++){ const x=(i*29+b.t*8)%VW, y=104-((i*37+b.t*22)%104); g.fillStyle='rgba(200,240,255,.35)'; g.fillRect(Math.round(x),Math.round(y),2,2); } g.fillStyle='#08304e'; for(let x=0;x<VW;x+=40) g.fillRect(x,92+(x%3)*4,26,20); }];
 MC_BG.abyss=['#040814','#000',(b)=>{ for(let i=0;i<5;i++){ g.fillStyle=`rgba(255,250,160,${0.3+0.2*Math.sin(b.t*3+i)})`; g.fillRect(30+i*80,30+(i%2)*30,3,3); } }];
 const MC_SEA_PAL={floor:'#1d5f8c',floor2:'#1f6492',wall:'#2a3e5a',wallHi:'#e0705a',wall2:'#1a2638',speck:'#3a86b0',water:'#0a2a48',waterHi:'#1a4a70',plate:'#5a6a7a',block:'#d8c8a8',blockHi:'#fff4dc',gate:'#e0705a',current:'#195a86'};
@@ -4562,7 +4569,7 @@ function labDraw(){ labInit(); const L=MCS.lab; if(!LABRT) labResetCreature(true
   // vignette
   const vg=g.createRadialGradient(VW/2,VH/2,60,VW/2,VH/2,250); vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(0,0,0,0.85)'); g.fillStyle=vg; g.fillRect(0,0,VW,VH);
   if(prox>0.3){ g.fillStyle=`rgba(120,0,0,${(prox-0.3)*0.25*(0.6+0.4*Math.sin(T*9))})`; g.fillRect(0,0,VW,VH); }
-  if(R.stun>0){ if(Math.floor(T*16)%2){ g.fillStyle='rgba(220,220,255,0.10)'; g.fillRect(0,0,VW,VH); } if(typeof labStatic==='function') labStatic(0.18+0.08*Math.sin(T*20)); g.fillStyle='#ffe86a'; for(let i=0;i<5;i++){ const a=T*4+i*1.26, x=200+Math.cos(a)*28, y=54+Math.sin(a*1.4)*8-i; g.fillRect(x,y,2,2); g.fillRect(x-2,y+1,6,1); } txt('* STUNNED',200,44,'#ffe86a',10,'center'); }
+  if((R&&R.stun>0)||(L.boss&&L.boss.stun>0)){ if(Math.floor(T*16)%2){ g.fillStyle='rgba(220,220,255,0.10)'; g.fillRect(0,0,VW,VH); } if(typeof labStatic==='function') labStatic(0.18+0.08*Math.sin(T*20)); g.fillStyle='#ffe86a'; for(let i=0;i<5;i++){ const a=T*4+i*1.26, x=200+Math.cos(a)*28, y=54+Math.sin(a*1.4)*8-i; g.fillRect(x,y,2,2); g.fillRect(x-2,y+1,6,1); } txt('* STUNNED',200,44,'#ffe86a',10,'center'); }
   doomDrawView();
   if(L.hide){ g.fillStyle='#05070a'; g.fillRect(0,0,VW,96); g.fillRect(0,106,VW,14); g.fillRect(0,130,VW,14); g.fillRect(0,154,VW,VH-154); g.fillStyle='#1c242c'; for(const y of [96,120,144]){ g.fillRect(0,y-2,VW,2); g.fillRect(0,y+10,VW,2); }
     txt('* Hiding in a locker...  (Z to step out)',200,200,'#9ab',10,'center'); }
@@ -4664,6 +4671,21 @@ const DAM_MAX={bullets:200,shells:50,nails:200,cells:100};
 const DAM_NAME={bullets:'BULLETS',shells:'SHELLS',nails:'NAILS',cells:'LEAF CELLS'};
 const DMPICK={bullets:['bullets',12],shells:['shells',6],nails:['nails',25],cells:['cells',15],health:['health',10]};
 let DOOM=null, DOOM_PEACE=false;   // DOOM = runtime (imps, shots, fx). DOOM_PEACE: tests can turn the imps off for long walks.
+function labLuck(){ return !!(typeof MCS!=='undefined'&&MCS&&(MCS.luck||(MCS.flags&&MCS.flags.lab_luck))); }
+function labGrantLuck(){ if(!MCS) return; MCS.luck=true; if(!MCS.flags) MCS.flags={}; MCS.flags.lab_luck=true;
+  P.max=Math.max(P.max|0,100); P.hp=100; if(typeof mcSet==='function') mcSet('lab_luck',true); mcSave(); }
+function labLuckTick(dt){ const L=MCS&&MCS.lab; if(!L||!L.luckShow) return; L.luckShow.t=(L.luckShow.t||0)+dt;
+  if(L.luckShow.t>=2.8){ const fn=L.luckThen; L.luckShow=null; L.luckThen=null; if(fn) fn(); } }
+function labLuckDraw(){ const L=MCS&&MCS.lab, S=L&&L.luckShow; if(!S) return;
+  const a=Math.min(1,S.t*3, Math.max(0,(2.8-S.t)/0.4));
+  g.fillStyle=`rgba(0,0,0,${0.55*a})`; g.fillRect(0,40,VW,110);
+  g.strokeStyle=`rgba(255,225,74,${0.85*a})`; g.lineWidth=2; g.strokeRect(40.5,48.5,319,94);
+  const drop=S.drop||(MCS&&MCS.flags&&MCS.flags.abom_drop), teeth=drop==='teeth';
+  g.globalAlpha=a; txt('LUCK',200,54,'#ffe14a',26,'center');
+  txt(teeth?'ABOMINATION TEETH':'ABOMINATION SKIN',200,84,teeth?'#ff7070':'#9fe8ff',12,'center');
+  txt(teeth?'Your gun is upgraded.':'Your shield is stronger.',200,100,'#fff',10,'center');
+  txt('INFINITE AMMO   ·   HP 100',200,118,'#ffe08a',10,'center'); g.globalAlpha=1; }
+
 function doomNewSave(){ return {ammo:{bullets:42,shells:2,nails:0,cells:0},own:['pistol'],cur:'pistol',flash:true,chests:[],picks:[],dead:[],intro:false}; }
 function doomEnsure(L){ if(!L) return null; if(!L.doom) L.doom=doomNewSave(); const D=L.doom; for(const k of ['chests','picks','dead']) if(!Array.isArray(D[k])) D[k]=[]; if(!D.ammo) D.ammo={bullets:30,shells:0,nails:0,cells:0}; if(!D.own||!D.own.length) D.own=['pistol']; if(!DW[D.cur]) D.cur=D.own[0]; return D; }
 // ---- placement: chests / imps / pickups on corridor cells, spread out (deterministic from the lab map) ----
@@ -4734,12 +4756,14 @@ function doomDropAmmo(x,y,n,k){ const R=DOOM, L=MCS&&MCS.lab; if(!R||!L) return 
     return best||[L.x,L.y]; };
   for(let i=0;i<n;i++){ const [px,py]=floor(x,y); const drop={x:px+(i?0.28:-0.04),y:py+(i?0.22:0),k}; R.drops.push(drop); out.push(drop); }
   return out; }
-function doomDamage(t,d){ const L=MCS.lab, R=DOOM;
+function doomDamage(t,d){ const L=MCS.lab, R=DOOM; if(P&&P.keys&&P.keys.includes('mc_teeth')) d=d+2;
   if(t.k==='imp'){ const m=t.m; m.hp-=d; m.hurt=0.2; m.mode='chase'; doomSnd('imphit'); if(m.hp<=0){ doomSnd('impdie'); if(!m.minion) L.doom.dead.push(m.i); R.corpses.push({x:m.x,y:m.y}); doomDropAmmo(m.x,m.y,1); } }
   else if(t.k==='cre'){ const C=LABRT; C.hits=(C.hits||0)+d; doomSnd('bosshit');
     if(!(C.stun>0)&&!(C.stunCd>0)){ C.stun=3; C.stunCd=7; if(typeof labStunSnd==='function') labStunSnd(); else if(typeof labStaticSnd==='function') labStaticSnd(0.25); mcToast('* The shot STUNS it! Run!',1.8); doomDropAmmo(C.x,C.y,1+(Math.random()<0.5?1:0)); }
     if(C.hits>=12){ C.hits=0; C.flee=7; C.mode='roam'; C.path=[]; C.grace=6; labSfx('screech'); mcToast('* It shrieks and scuttles away into the dark!',2.4); } }
-  else if(t.k==='boss'){ const b=L.boss; b.hp=Math.max(0,b.hp-d); b.hurt=0.15; doomSnd('bosshit'); if(b.hp<=0) doomBossDown(); } }
+  else if(t.k==='boss'){ const b=L.boss; b.hp=Math.max(0,b.hp-d); b.hurt=0.15; doomSnd('bosshit');
+    if(!b.down&&!(b.stun>0)&&!(b.stunCd>0)){ b.stun=3; b.stunCd=7; if(typeof labStunSnd==='function') labStunSnd(); else if(typeof labStaticSnd==='function') labStaticSnd(0.25); mcToast('* The shot STUNS it!',1.8); }
+    if(b.hp<=0) doomBossDown(); } }
 function doomRaySolid(a,maxd){ if(!LAB||!MCS||!MCS.lab) return null;
   const L=MCS.lab, M=LAB.M, dx=Math.cos(a), dy=Math.sin(a);
   let mx=Math.floor(L.x), my=Math.floor(L.y);
@@ -4770,8 +4794,9 @@ function doomDrawGlass(){ const R=DOOM; if(!R||!R.glass) return;
   g.globalAlpha=1; }
 
 function doomFire(){ const L=MCS.lab, D=L.doom, R=DOOM, w=DW[D.cur]; if(R.cd>0) return;
-  if((D.ammo[w.am]||0)<w.use){ R.cd=0.3; doomSnd('empty'); const alt=DW_ORDER.slice().reverse().find(k=>D.own.includes(k)&&D.ammo[DW[k].am]>0); if(alt&&alt!==D.cur){ D.cur=alt; doomSnd('switch'); mcToast('* Out of ammo! Switched to the '+DW[alt].n+'.',1.6); } else mcToast('* Out of ammo! Look for ammo boxes.',1.6); return; }
-  D.ammo[w.am]-=w.use; R.cd=w.cd; R.fireT=0.12; R.flashT=0.07; R.shotsFired=(R.shotsFired||0)+1; doomSnd(D.cur);
+  const luck=typeof labLuck==='function'&&labLuck();
+  if(!luck&&(D.ammo[w.am]||0)<w.use){ R.cd=0.3; doomSnd('empty'); const alt=DW_ORDER.slice().reverse().find(k=>D.own.includes(k)&&D.ammo[DW[k].am]>0); if(alt&&alt!==D.cur){ D.cur=alt; doomSnd('switch'); mcToast('* Out of ammo! Switched to the '+DW[alt].n+'.',1.6); } else mcToast('* Out of ammo! Look for ammo boxes.',1.6); return; }
+  if(!luck) D.ammo[w.am]-=w.use; R.cd=w.cd; R.fireT=0.12; R.flashT=0.07; R.shotsFired=(R.shotsFired||0)+1; doomSnd(D.cur);
   if(LABRT&&!L.boss){ const d=Math.hypot(LABRT.x-L.x,LABRT.y-L.y); if(d<9&&LABRT.mode!=='chase'&&!(LABRT.flee>0)&&Math.random()<0.2) LABRT.alarm=Math.max(LABRT.alarm,2); }   // gunshots are loud...
   for(let p=0;p<w.pel;p++){ const a=L.a+(Math.random()*2-1)*w.spr;
     if(w.proj){ R.shots.push({x:L.x+Math.cos(a)*0.3,y:L.y+Math.sin(a)*0.3,vx:Math.cos(a)*w.proj,vy:Math.sin(a)*w.proj,dmg:w.dmg,k:D.cur==='leaf'?'bolt':'nail',mine:true,life:3,splash:w.splash||0}); continue; }
@@ -4809,7 +4834,7 @@ function doomTake(k){ const D=MCS.lab.doom, [am,n]=DMPICK[k];
   if(am==='health'){ if(P.hp>=P.max) return false; P.hp=Math.min(P.max,P.hp+Math.round(P.max*0.25)); doomSnd('pick'); mcToast('* You picked up a MEDKIT.',1.4); return true; }
   if(D.ammo[am]>=DAM_MAX[am]) return false; D.ammo[am]=Math.min(DAM_MAX[am],D.ammo[am]+n); doomSnd('pick'); mcToast(`* Picked up ${n} ${DAM_NAME[am]}.`,1.4); return true; }
 // ---- per-frame update (called from labUpdate before walking) ----
-function doomUpdate(dt){ const L=MCS.lab, R=doomRT(), D=L.doom; R.cd=Math.max(0,R.cd-dt); R.fireT=Math.max(0,R.fireT-dt); R.flashT=Math.max(0,R.flashT-dt); R.hurtT=Math.max(0,R.hurtT-dt);
+function doomUpdate(dt){ const L=MCS.lab, R=doomRT(), D=L.doom; R.cd=Math.max(0,R.cd-dt); R.fireT=Math.max(0,R.fireT-dt); R.flashT=Math.max(0,R.flashT-dt); R.hurtT=Math.max(0,R.hurtT-dt); labLuckTick(dt);
   if(R.chestAnim){ R.chestAnim.t+=dt; if(R.chestAnim.t>1.4) R.chestAnim=null; }
   if(R.dieT>0){ R.dieT+=dt; if(R.dieT>2.4){ R.dieT=0; P.hp=P.max; R.shots=[]; if(L.boss){ doomBossReset(); } else { labAfterCatch(); for(const m of R.imps) if(m.hp>0){ m.mode='idle'; m.x=m.hx; m.y=m.hy; } } } return true; }
   if(!D.intro){ D.intro=true; mcSave(); say(['* Something is lying by the ladder... a FLASHLIGHT, a PISTOL and a box of ammo.','* (F or LIGHT: flashlight.  X or tap: shoot.  Z: use.  1-5 / SWITCH: weapons.)','* There are CHESTS somewhere in these halls. Maybe more weapons...']); return true; }
@@ -4832,7 +4857,9 @@ function doomBossStart(){ const L=MCS.lab; doomRT(); L.fighting=false; L.hunt=fa
 function doomBossReset(){ const L=MCS.lab, b=L.boss; b.hp=b.max; b.x=13.5; b.y=11.8; b.down=false; b.spit=2.5; b.stabT=0; b.summoned=false; L.x=12.5; L.y=15.3; L.a=-Math.PI/2; DOOM.shots=[];
   DOOM.imps=DOOM.imps.filter(m=>!m.boss); say(['* ...you get back up. Your weapons are still with you.','* THE ABOMINATION is waiting in the middle room.']); }
 function doomBossUpdate(dt){ const L=MCS.lab, b=L.boss, R=DOOM; b.anim+=dt; b.hurt=Math.max(0,b.hurt-dt);
-  if(b.down){ if(pressed.left||pressed.right){ b.choice=1-b.choice; SFX.sel(); } if(pressed.a&&b.downT>1.2){ doomBossEnd(b.choice===0?'win':'spare'); } b.downT=(b.downT||0)+dt; pressed.a=false; pressed.b=false; return; }
+  if(b.stunCd>0) b.stunCd-=dt;
+  if(b.stun>0&&!b.down){ b.stun-=dt; return; }
+  if(b.down){ b.downT=(b.downT||0)+dt; if(!b.ended&&b.downT>1.15){ b.ended=true; doomBossEnd(); } return; }
   b.t+=dt; const d=Math.hypot(L.x-b.x,L.y-b.y), los=labLOS(b.x,b.y,L.x,L.y)||d<1.2; b.ph=b.hp<=b.max*0.5?2:1;
   // walk slowly toward you, but stay near the door it is guarding
   if(!L.hide&&d>1.6){ const tx=L.x, ty=L.y; if(!b.path||b.think<=0){ b.think=0.6; b.path=labPath(b.x,b.y,tx,ty).filter(([x,y])=>labInside(x,y)); } b.think-=dt;
@@ -4850,8 +4877,14 @@ function doomBossUpdate(dt){ const L=MCS.lab, b=L.boss, R=DOOM; b.anim+=dt; b.hu
     for(const [x,y] of [[11.5,14.5],[15.5,14.5]]) if(labInside(x,y)) R.imps.push({i:900+R.imps.length,x,y,hx:x,hy:y,hp:4,mode:'chase',t:0,atk:2.5,hurt:0,path:[],think:0,anim:0,boss:true}); }
   doomImps(dt); }
 function doomBossDown(){ const L=MCS.lab, b=L.boss; b.down=true; b.downT=0; DOOM.shots=[]; for(const m of DOOM.imps) if(m.boss) m.hp=0; labSfx('roar'); }
-function doomBossEnd(k){ const L=MCS.lab; L.boss=null; L.fighting=true; mcSet('boss_abomination',k); if(k==='win'){ P.exp+=60; P.kills++; P.gold+=120; } else { P.spares++; P.gold+=90; } mcSave();
-  MC_BOSS.abomination.onEnd(k); }
+function doomRollDrop(){ return Math.random()<0.5?'teeth':'skin'; }
+function doomGiveDrop(drop){ const k=drop==='teeth'?'mc_teeth':'mc_skin'; if(!P.keys.includes(k)) P.keys.push(k); mcSet('abom_drop',drop); MCS.drop=drop; }
+function doomBossEnd(k){ const L=MCS.lab; L.boss=null;
+  const drop=(k==='teeth'||k==='skin')?k:doomRollDrop();
+  mcSet('boss_abomination','win'); P.exp+=60; P.kills++; P.gold+=120;
+  doomGiveDrop(drop); labGrantLuck();
+  L.luckShow={t:0,drop}; L.luckThen=()=>{ L.fighting=true; MC_BOSS.abomination.onEnd(drop); };
+  mcSave(); }
 // ---- drawing helpers ----
 function doomLight(dist,x,out,flick){ const L=MCS.lab, D=L&&L.doom, W=LAB_W, c=(x-W/2)/(W/2); let l;
   if(!D) return null;
@@ -4879,7 +4912,7 @@ function doomDrawView(){ const L=MCS.lab, D=L.doom, R=DOOM; if(!R) return; const
   g.fillStyle='rgba(255,240,200,.55)'; g.fillRect(199,104,2,6); g.fillRect(196,106,8,2); }
 function doomDrawHUD(){ const L=MCS.lab, D=L.doom, w=DW[D.cur], y=212; g.fillStyle='#3a3530'; g.fillRect(0,y,VW,VH-y); g.fillStyle='#5a524a'; g.fillRect(0,y,VW,2); g.fillStyle='#24201c'; g.fillRect(0,VH-2,VW,2);
   const cell=(x,wd,label,val,col)=>{ g.fillStyle='#2a2622'; g.fillRect(x,y+3,wd,24); g.fillStyle='#4a443c'; g.fillRect(x,y+3,wd,1); txt(val,x+wd/2,y+5,col,12,'center'); txt(label,x+wd/2,y+19,'#c8bca8',8,'center'); };
-  cell(3,60,DAM_NAME[w.am],String(D.ammo[w.am]),'#ff4030');
+  cell(3,60,DAM_NAME[w.am],(typeof labLuck==='function'&&labLuck())?'∞':String(D.ammo[w.am]),(typeof labLuck==='function'&&labLuck())?'#ffe14a':'#ff4030');
   cell(66,52,'HEALTH',Math.round(P.hp/P.max*100)+'%','#ff4030');
   // the knight's face (hurt = cracked visor)
   { const fx=122, f=P.hp/P.max; g.fillStyle='#2a2622'; g.fillRect(fx,y+3,26,24); g.fillStyle='#9aa0b0'; g.fillRect(fx+5,y+5,16,18); g.fillStyle='#cfd4e0'; g.fillRect(fx+5,y+5,16,3); g.fillStyle='#1a1c24'; g.fillRect(fx+8,y+12,10,3);
@@ -4893,9 +4926,9 @@ function doomDrawHUD(){ const L=MCS.lab, D=L.doom, w=DW[D.cur], y=212; g.fillSty
   txt(D.flash?'LIGHT ON':'LIGHT OFF',336,y+18,D.flash?'#fff6c0':'#777',8,'center'); g.fillStyle=D.flash?'#fff6a0':'#555'; g.fillRect(378,y+8,12,6); g.fillRect(390,y+6,4,10); }
 function doomDrawOver(){ const L=MCS.lab, R=DOOM;
   doomDrawGlass();
+  labLuckDraw();
   if(L.boss){ const b=L.boss; g.fillStyle='rgba(0,0,0,.6)'; g.fillRect(100,16,200,16); txt('THE ABOMINATION',200,17,'#ff6060',8,'center'); g.fillStyle='#400'; g.fillRect(110,26,180,4); g.fillStyle='#e33'; g.fillRect(110,26,Math.round(180*b.hp/b.max),4);
-    if(b.down){ g.fillStyle='rgba(0,0,0,.7)'; g.fillRect(60,120,280,74); txt('* THE ABOMINATION collapses. It is still breathing...',200,126,'#fff',8,'center'); txt('* What do you do?',200,140,'#ccc',8,'center');
-      ['FINISH IT','SPARE IT'].forEach((n,i)=>{ const x=110+i*120, on=b.choice===i; g.strokeStyle=on?'#ff0':'#888'; g.lineWidth=2; g.strokeRect(x-48,158,96,22); txt(n,x,163,on?'#ff0':(i?'#9fe8ff':'#ff7070'),10,'center'); if(on) drawHeart(x-40,169); }); } }
+    if(b.down){ g.fillStyle='rgba(0,0,0,.7)'; g.fillRect(60,120,280,40); txt('* THE ABOMINATION collapses...',200,128,'#fff',10,'center'); txt('A prize drops from its body.',200,144,'#ffe08a',8,'center'); } }
   if(R&&R.dieT>0){ const k=Math.min(1,R.dieT/1.2); g.fillStyle=`rgba(120,0,0,${0.4+0.5*k})`; g.fillRect(0,0,VW,VH); g.fillStyle=`rgba(0,0,0,${k*0.6})`; g.fillRect(0,0,VW,VH*k*0.6); if(R.dieT>0.6) txt('YOU DIED',200,100,'#ff3030',16,'center'); } }
 // ---- iPad buttons (LIGHT / SWITCH / USE), only shown in the lab ----
 let DOOM_PADV=null;
