@@ -454,7 +454,17 @@ const ITEMS={dew:{name:'Dew Drop',heal:5,price:8,desc:'A cool drop of morning de
   sap:{name:'Golden Sap',heal:999,price:60,desc:'Shiny sap from the oldest tree. FULL HEAL'}};
 const INV_MAX=8;
 const KEYITEMS={gmap:{name:"Glubbb's Map",desc:'A KEY ITEM. Glubbb drew it himself: "Me drawing bery gud". Select to look at it.'},
-  fdraw:{name:"Frosty Glubbb's Drawing",desc:'mwee huabe frostbuite'}};
+  fdraw:{name:"Frosty Glubbb's Drawing",desc:'mwee huabe frostbuite'},
+  mc_teeth:{name:'Abomination Teeth',desc:'A KEY ITEM. A prize from THE ABOMINATION.'},
+  mc_skin:{name:'Abomination Skin',desc:'A KEY ITEM. A prize from THE ABOMINATION.'},
+  mc_arm:{name:'Arm of the Killer',desc:'A KEY ITEM. Left behind at the end of the tape.'},
+  mc_hull:{name:'Hull Shell',desc:'A KEY ITEM. Left behind at the end of the tape.'},
+  mc_stick:{name:'Wood Stick',desc:'A KEY ITEM. A sturdy stick from A-BOMB\'s truck.'},
+  mc_wire:{name:'Wire',desc:'A KEY ITEM. A wire for the universal traveler machine.'},
+  mc_gear:{name:'Gear',desc:'A KEY ITEM. A gear for the universal traveler machine.'},
+  mc_battery:{name:'Battery',desc:'A KEY ITEM. A battery for the universal traveler machine.'},
+  mc_machine:{name:'Fixed Machine',desc:'A KEY ITEM. The universal traveler machine is ready.'}};
+function keyItem(id){ const it=KEYITEMS[id]; return it||(KEYITEMS[id]={name:String(id),desc:'A KEY ITEM.'}); }
 const PHOTO_ITEMS={gmap:{img:'gmap_img',title:"GLUBBB'S MAP"},fdraw:{img:'fdraw_img',title:"FROSTY GLUBBB'S DRAWING",cap:'mwee huabe frostbuite'}};
 function invGroups(){ const m={}; P.inv.forEach(id=>m[id]=(m[id]||0)+1); return Object.keys(ITEMS).filter(id=>m[id]).map(id=>[id,m[id]]); }
 function useItem(id){ const i=P.inv.indexOf(id); if(i<0) return null; P.inv.splice(i,1); const it=ITEMS[id], before=P.hp;
@@ -493,7 +503,7 @@ let MENU=null;   // {kind:'inv'|'shop'|'buy'|'sell', sel, msg}
 function openInv(){ MENU={kind:'inv',sel:0}; SFX.sel(); }
 function openShop(S){ if(S) CUR_SHOP=S; MENU={kind:'shop',sel:0}; owFace=null; }
 function menuList(){ const k=MENU.kind; if(k==='tp') return tpList().map(a=>AREA_NAMES[a]);
-  if(k==='inv'){ const gr=invGroups(); const L=[...gr.map(([id,n])=>`${ITEMS[id].name}  x${n}`),...P.keys.map(id=>`* ${KEYITEMS[id].name}`)]; return L.length?L:['(no items)']; }
+  if(k==='inv'){ const gr=invGroups(); const L=[...gr.map(([id,n])=>`${ITEMS[id].name}  x${n}`),...P.keys.map(id=>`* ${keyItem(id).name}`)]; return L.length?L:['(no items)']; }
   if(k==='map') return ['Close'];
   if(k==='shop') return ['Buy','Sell','Talk','Leave'];
   if(k==='buy') return [...CUR_SHOP.stock.map(stockLabel),'Back'];
@@ -536,7 +546,7 @@ function drawMenu(){ if(!MENU) return; if(MENU.kind==='tp'){ drawTPMenu(); retur
   if(M.kind==='inv'){ box(20,30,190,26+L.length*13); txt('ITEMS',30,36,'#ff0',10);
     L.forEach((l,i)=>{ txtFit(l,46,52+i*13,'#fff',10,158); if(i===M.sel) drawHeart(36,58+i*13); });
     box(216,30,166,92); txt(`HP ${P.hp}/${P.max}`,226,38,'#ff6',10); txt(`GOLD ${P.gold}G`,226,54,'#ffd23a',10); txt(`LEAVES ${stones}/8`,226,70,'#bfe86a',10);
-    const gr=invGroups(); const dsc=gr[M.sel]?ITEMS[gr[M.sel][0]].desc:(P.keys[M.sel-gr.length]?KEYITEMS[P.keys[M.sel-gr.length]].desc:''); wrap(dsc,150,8).forEach((l,i)=>txt(l,226,88+i*10,'#ccc',8));
+    const gr=invGroups(); const dsc=gr[M.sel]?ITEMS[gr[M.sel][0]].desc:(P.keys[M.sel-gr.length]?keyItem(P.keys[M.sel-gr.length]).desc:''); wrap(dsc,150,8).forEach((l,i)=>txt(l,226,88+i*10,'#ccc',8));
     txt(IS_TOUCH?'A: use   B: close':'Z: use   X: close',200,226,'#aaa',8,'center'); return; }
   // shop window
   g.fillStyle='rgba(0,0,0,.6)'; g.fillRect(0,0,VW,VH); box(20,14,360,96);
@@ -2644,6 +2654,7 @@ function mcDarkness(r){ if(!MC_DARK){ MC_DARK=document.createElement('canvas'); 
   hole(P.x,P.y-10,58+Math.sin(T*3)*3); for(const o of mcObjs()) if(o.glow) hole(o.x+(o.gx||0),o.y+(o.gy||-14),o.glow);
   t.globalCompositeOperation='source-over'; g.drawImage(MC_DARK,0,0);
   for(const o of mcObjs()) if(o.glow){ g.fillStyle=`rgba(255,250,160,${0.5+0.3*Math.sin(T*5+o.x)})`; g.fillRect(Math.round(o.x+(o.gx||0))-2,Math.round(o.y+(o.gy||-14))-2,4,4); } }
+
 
 
 // ---------- MULTIVERSE CHAOS: PROLOGUE + "fix your machine" quest (Leafy Green World again) ----------
@@ -5375,13 +5386,39 @@ function brInit(){ if(BR) return; BR=brGen(); BR.T=brTex(); BR.cv=document.creat
   BR.keyIm=labTiny(['...oo.....','..o..o....','..o..ooooo','...oo..o.o','..........'],{o:[230,190,70]}); BR.keyIm.glow=true; }
 function brStart(){ brInit(); MCS.br={x:2.5,y:2.5,a:Math.PI/4,key:false,t:0}; mcSave(); }
 function brFinish(){ MCS.br=null; brAudioStop(); mcEnterRoom(3,2,{x:56,y:60}); P.x=56; P.y=60; mcSave(); say(['* You turn the key. The door opens into cold, dark water...','* ...and you swim up, up, up, out of the lab. Back in the coral maze!','* (You escaped THE BACKROOMS.)']); }
-function brUpdate(dt){ brInit(); const S=MCS.br; S.t+=dt; brAudioTick();
+function brMarkSeen(){ const S=MCS&&MCS.br; if(!S||!BR) return; const N=BR_N;
+  if(!S.seen||S.seen.length!==N*N) S.seen=(S.seen||'').padEnd(N*N,'0').slice(0,N*N);
+  const cx=Math.floor(S.x), cy=Math.floor(S.y); const a=S.seen.split('');
+  for(let y=cy-2;y<=cy+2;y++) for(let x=cx-2;x<=cx+2;x++) if(x>=0&&y>=0&&x<N&&y<N) a[y*N+x]='1';
+  S.seen=a.join(''); }
+function brDrawMap(){ const S=MCS&&MCS.br, N=BR_N, M=BR&&BR.M; if(!S||!M) return;
+  brMarkSeen();
+  const sc=2, ox=VW-4-N*sc, oy=36;
+  g.fillStyle='rgba(0,0,0,.6)'; g.fillRect(ox-2,oy-2,N*sc+4,N*sc+4);
+  const seen=S.seen||'';
+  for(let y=1;y<N-1;y++) for(let x=1;x<N-1;x++){
+    if(seen[y*N+x]!=='1') continue;
+    const c=M[y][x];
+    g.fillStyle=c==='.'?'#c4a85a':c==='~'?'#6aa8c8':c==='t'?'#c8d4d8':c==='X'?'#40dc5a':c==='y'?'#8a6a28':c==='p'?'#6a7a80':'#1a1e22';
+    g.fillRect(ox+x*sc,oy+y*sc,sc,sc); }
+  // EXIT and KEY blips stay visible so you can find them
+  if(BR.exit){ g.fillStyle='#40dc5a'; g.fillRect(ox+((BR.exit.x)|0)*sc-1, oy+((BR.exit.y)|0)*sc-1, sc+2, sc+2); }
+  if(BR.key&&!S.key){ const pulse=0.55+0.45*Math.sin((S.t||0)*6); g.fillStyle='rgb('+(200+55*pulse|0)+','+(160+60*pulse|0)+',20)'; g.fillRect(ox+Math.floor(BR.key.x)*sc-1, oy+Math.floor(BR.key.y)*sc-1, sc+2, sc+2); }
+  // player arrow (points the way you are looking)
+  const px=ox+S.x*sc, py=oy+S.y*sc, cs=Math.cos(S.a), sn=Math.sin(S.a);
+  g.fillStyle='#fff'; g.beginPath();
+  g.moveTo(px+cs*4, py+sn*4);
+  g.lineTo(px-cs*3-sn*2.4, py-sn*3+cs*2.4);
+  g.lineTo(px-cs*3+sn*2.4, py-sn*3-cs*2.4);
+  g.closePath(); g.fill(); }
+function brUpdate(dt){ brInit(); const S=MCS.br; S.t+=dt; brAudioTick(); brMarkSeen();
   if(!S.intro){ S.intro=true; say(['* ...you fall through the floor of the lab.','* Endless YELLOW rooms. Old wet carpet. The lights HUMMMMM.','* (THE BACKROOMS. Somewhere in the flooded POOLROOMS is a KEY. Find it, then find the EXIT.)']); return; }
   const turn=2.4, wet=brCell(S.x,S.y)==='~', hard=(S.run|0)>=1, sp=wet?(hard?1.15:1.55):(hard?1.8:2.2); if(held.left) S.a-=turn*dt; if(held.right) S.a+=turn*dt;
   const mv=(held.up?1:0)-(held.down?1:0), sl=(held.sr?1:0)-(held.sl?1:0);
   if(mv||sl){ const r=0.22, free=(x,y)=>brFloor(brCell(x-r,y-r))&&brFloor(brCell(x+r,y-r))&&brFloor(brCell(x-r,y+r))&&brFloor(brCell(x+r,y+r));
     const nx=S.x+(Math.cos(S.a)*mv-Math.sin(S.a)*sl)*sp*dt, ny=S.y+(Math.sin(S.a)*mv+Math.cos(S.a)*sl)*sp*dt; if(free(nx,S.y)) S.x=nx; if(free(S.x,ny)) S.y=ny;
     S.step=(S.step||0)+dt; if(S.step>(wet?0.5:0.42)){ S.step=0; brStep(wet); } S.bob=(S.bob||0)+dt*8; }
+  brMarkSeen();
   if(!S.key&&Math.hypot(BR.key.x-S.x,BR.key.y-S.y)<0.6){ S.key=true; fanfareSmall(); mcSave(); say(['* Under the water, something glints...','* You found the BACKROOMS KEY! A rusty brass key, still dripping.','* (Now find the EXIT door. It has a green sign.)']); return; }
   if(pressed.a){ const dx=Math.cos(S.a), dy=Math.sin(S.a); for(let s=0.1;s<1.4;s+=0.1){ const c=brCell(S.x+dx*s,S.y+dy*s); if(c==='X'){ if(S.key) brFinish(); else say(['* A door. A green EXIT sign buzzes above it.','* It is locked. (You need the KEY from the poolrooms.)']); return; } if(!brFloor(c)){ if(c==='y') say(['* The wallpaper is damp. It goes on forever.']); else if(c==='p') say(['* Cold white tiles. Water drips somewhere far away.']); return; } } }
   if(pressed.b||pressed.inv) openInv(); }
@@ -5416,6 +5453,7 @@ function brDraw(){ brInit(); const S=MCS.br, W=BR_W, H=BR_H, buf=BR.img.data, TX
   // VHS-ish noise line + label
   if(Math.floor(S.t*0.7)%9===0){ g.fillStyle='rgba(255,255,255,0.06)'; g.fillRect(0,(S.t*60)%VH,VW,3); }
   txt(pool?'THE POOLROOMS':'THE BACKROOMS - LEVEL 0',8,8,pool?'#e8fbff':'#ffe9a0',8); if(S.key) txt('KEY',VW-8,8,'#e6be46',8,'right');
+  brDrawMap();
   if(!dialog){ const ddx=Math.cos(S.a), ddy=Math.sin(S.a); for(let s=0.1;s<1.3;s+=0.1){ const c=brCell(S.x+ddx*s,S.y+ddy*s); if(c==='X'){ txt(S.key?(IS_TOUCH?'tap: open the EXIT':'Z: open the EXIT'):'EXIT (locked)',200,200,'#7cff9a',10,'center'); break; } if(!brFloor(c)) break; } }
   if(IS_TOUCH&&typeof doomPad==='function') doomPad(false); }
 // ---- SOUND: low droning pad, fluorescent hum, sparse distant tones; much more reverb/echo in the pools + drips ----
@@ -6554,7 +6592,7 @@ window.__G={encounter:(id,lv)=>{ ENC={t:0.05,cfg:pickEnemy(owPool(),lv||1,id)}; 
   giveLeaves:n=>{ for(let i=0;i<8;i++){ leavesGot[i]=i<n; dunDone[i]=i<n; if(i<n&&!P.keys.includes('leaf'+i)) P.keys.push('leaf'+i); } stones=n; dun1Done=n>0; LEAFY.questGiven=true; },DR:()=>DR(),bossBattle:c=>startBattle(c,{boss:true}),areaNpcs:()=>areaNpcs(),gbGapCheck:n=>gbGapCheck(n),gbVolley:(k,p)=>gbVolley(k,p,[140,104,120,86]),startReveal:()=>startReveal(),get REV(){return REV},BIG_PAPER,FINAL_A,get bpBeaten(){return bpBeaten},get glubbbossBeaten(){return glubbbossBeaten},setGboss:v=>{glubbbossBeaten=v},get leafyToFactory(){return leafyToFactory},setLTF:v=>{leafyToFactory=v},get PEND_SAY(){return PEND_SAY},saveGame:()=>saveGame(),readSlot:i=>readSlot(i),get SLOT(){return SLOT},get FS(){return FS},get PLAYT(){return PLAYT},snapState:()=>snapState(),openFiles:()=>openFiles(),RARE_P,setRare:p=>{RARE_P_OVR=p},LEAFY,invGroups:()=>invGroups(),setArea:k=>setArea(k),goArea:(k,sd)=>goArea(k,sd),get curA(){return curA},AREAS,AREA_NPCS,get hasFrostDrawing(){return hasFrostDrawing},blocked:(x,y)=>blocked(x,y),TP_SEEN,TP_PADS,PUZ,AREA_NAMES,openTP:()=>openTP(),teleportTo:k=>teleportTo(k),get slide(){return D&&D.slide},dunWave:(p,l)=>dunWave(p,l),tryPush:(bx,by,dx,dy)=>{ D.push=1; tryPush([bx,by],dx,dy,0); },AREAS,get MW(){return MW},get cam(){return cam},get AREA_BANNER(){return AREA_BANNER},exitDun:()=>exitDungeon(),ulFight:()=>{ startBattle(ULT_LEAFY,null); },get ulCP(){return ulCP},giveMap:()=>{ hasGlubbbMap=true; if(!P.keys.includes('gmap')) P.keys.push('gmap'); },giveFrost:()=>{ hasFrostDrawing=true; if(!P.keys.includes('fdraw')) P.keys.push('fdraw'); },get CP(){return CP},setCPraw:c=>{CP=c;},DUN_CPS,SHOP_DEFS,CHARMS,GLUBBB_ITEMS,hasAllGlubbb:()=>hasAllGlubbb(),get CUR_SHOP(){return CUR_SHOP},respawnCP:()=>respawnCP(),die:()=>{ state='gameover'; T=0; },get WS(){return WS},unlockMC,mcUnlocked,get FIN(){return FIN},betrayal,get endLeaf(){return endLeaf},
   get hasGlubbbMap(){return hasGlubbbMap},GLUBBB,get MENU(){return MENU},SHOP,SHOPKEEP,FLOWER,ITEMS,testAttack:(id,atk)=>{ const cfg=id==='ultleafy'?ULT_LEAFY:id==='bigpaper'?BIG_PAPER:BOSSES[id]||MC_BOSS[id]||ENEMIES.find(e=>e.id===id); startBattle(cfg,null); startDodge(); B.atk=atk; B.box=B.target.slice(); return !!PATTERNS[atk]; },get D(){return D},get stones(){return stones},get dun1Done(){return dun1Done},ENT,enterRoom:(i,f)=>enterRoom(i,f),get endKind(){return endKind},get state(){return state},P,get B(){return B},get enemies(){return enemies},LEAFY,get dialog(){return dialog}};
 
-const GAME_BUILD='e84ef778202cc701';
+const GAME_BUILD='256b1ffb8aa61760';
 function updSaveAll(){ try{ if(typeof MCS!=='undefined'&&MCS&&typeof mcSave==='function') mcSave(); }catch(e){}
   try{ if(typeof saveGame==='function'&&typeof state==='string'&&state!=='mc'&&state!=='mcmenu') saveGame(); }catch(e){} }
 function updShow(build){ if(window._updOffer) return; window._updOffer=build; const el=document.getElementById('upd'); if(!el) return;
