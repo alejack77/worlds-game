@@ -1282,10 +1282,10 @@ const SPARE_NEED={
  ultleafy:{steps:[['Remember',3],['Talk',2],['Hold on',3]],mercy:0,hint:['Remember who Leafy was.','Talk to him.','Hold on. Do not let go.']},
  bigpaper:{steps:[['Ask name',2],['Read contract',3],['Recycle',2]],mercy:5,hint:['Ask its name.','Read the whole contract.','Offer to recycle it.']},
 };
-// v7 DIFFICULTY (only changes how hard bosses are to SPARE): Easy = any ACT once; Medium/Hard/Extreme = the boss's ACT steps in order, 2/3/4 times each (+0/1/2/3 mercy turns)
+// v7/v16 DIFFICULTY: spare rules (Easy = any ACT once; Medium/Hard/Extreme = ACT steps in order, 2/3/4 times each +0/1/2/3 mercy). v16 also scales combat: Medium = classic (identity); Easy easier; Hard harder; Extreme really hard + win-ramp (heat). Nightmare stays eased on Easy/Medium.
 const DIFFS=['easy','medium','hard','extreme'], DIFF_N={easy:1,medium:2,hard:3,extreme:4}, DIFF_M={easy:0,medium:1,hard:2,extreme:3};
 const DIFF_COL={easy:'#7ce36a',medium:'#ffe14a',hard:'#ff9a3a',extreme:'#ff4a4a'};
-const DIFF_INFO={easy:'Use ANY ACT on a boss just once to spare it.',medium:"Do the boss's ACTs in the right order, 2 times each.",hard:"Do the boss's ACTs in the right order, 3 times each.",extreme:"Do the boss's ACTs in the right order, 4 times each!"};
+const DIFF_INFO={easy:'Easier fights. Any ACT once spares a boss.',medium:'The classic game. Boss ACTs in order, 2 times each.',hard:'Harder fights. Boss ACTs in order, 3 times each.',extreme:'Really hard, and it ramps up as you win.'};
 let DIFF='medium';
 function diffOk(d){ return DIFFS.includes(d)?d:'medium'; }
 function spNeed(b){ const base=b&&SPARE_NEED[b.cfg.id]; if(!base) return null; if(b.spd&&b.spd.d===DIFF) return b.spd.nd;
@@ -1874,7 +1874,7 @@ function updateBattle(dt){
     const rv=b.atk==='za_mind'&&b.t>1.4&&b.t<b.dur-1.0?-1:1; b.rev=rv<0; const dx=((held.right?1:0)-(held.left?1:0))*rv, dy=((held.down?1:0)-(held.up?1:0))*rv;
     if(b.cfg.grav) mcGravSoul(b,s,dx,dt,bx); else { s.x=clamp(s.x+dx*sp*dt,bx[0]+5,bx[0]+bx[2]-5); s.y=clamp(s.y+dy*sp*dt,bx[1]+5,bx[1]+bx[3]-5); }
     if(b.cfg.ult){ ulTick(b,dt,dx,dy); b.dur=(UL_DUR[b.atk]||9)+(b.gauntlet?3.4:0); }
-    const ed=b.cfg.dboss?dt:dt*(b.cfg.ease||ENEMY_EASE); // regular enemies: whole attack runs a bit slower (fewer bullets per attack, slower shots, longer warnings)
+    const ed=(typeof diffEd==='function'?diffEd(b,dt):(b.cfg.dboss?dt:dt*(b.cfg.ease||ENEMY_EASE))); // medium: identity. easy/hard/extreme scale fire rate + bullet speed
     if(b.t<b.dur-0.6) (PATTERNS[b.atk||b.cfg.pattern]||PATTERNS.thorns)(b,ed,bx);
     updateBullets(ed,bx);
     if(state!=='battle') return;
@@ -2293,7 +2293,7 @@ function updateDiffPick(){ const tap=LASTTAP&&performance.now()-LASTTAP.t<250?LA
   if(pressed.b){ const c=DPICK.cb; DPICK=null; c(null); return; }
   if(pressed.a){ if(tap){ LASTTAP=null; const h=[0,1,2,3].find(i=>inR(tap,DP_R(i))); if(h===undefined) return; DPICK.sel=h; }
     const c=DPICK.cb, d=DIFFS[DPICK.sel]; DPICK=null; SFX.ok(); c(d); } }
-function drawDiffPick(){ g.fillStyle='rgba(0,0,0,.95)'; g.fillRect(0,0,VW,VH); txt('CHOOSE A DIFFICULTY',200,14,'#fff',12,'center'); txt('(It changes how hard the BOSSES are to SPARE.)',200,32,'#aaa',8,'center');
+function drawDiffPick(){ g.fillStyle='#000'; g.fillRect(0,0,VW,VH); txt('CHOOSE A DIFFICULTY',200,14,'#fff',12,'center'); txt('Medium is the classic game. Extreme gets harder as you win.',200,32,'#aaa',8,'center');
   DIFFS.forEach((d,i)=>{ const [x,y,w,h]=DP_R(i), on=DPICK.sel===i; g.fillStyle=on?DIFF_COL[d]:'#445'; g.fillRect(x-2,y-2,w+4,h+4); g.fillStyle='#000'; g.fillRect(x,y,w,h);
     if(on) drawHeart(x+8,y+6); txt(d.toUpperCase(),x+22,y+4,on?DIFF_COL[d]:'#fff',10); txt(DIFF_INFO[d],x+22,y+18,on?'#fff':'#999',8); });
   txt(IS_TOUCH?'tap one to choose':'UP/DOWN: choose   Z: OK   X: back',200,206,'#888',8,'center'); }
@@ -5829,6 +5829,112 @@ ENEMIES.push(
 // add to Ch9 pool and turn on encounters in the mid rooms (not the landing, not the throne)
 ['bulbworker','flickerbulb','glassshard','lampguard'].forEach(id=>{ if(MC_CH[9]&&MC_CH[9].pool&&!MC_CH[9].pool.includes(id)) MC_CH[9].pool.push(id); });
 if(MC_CH[9]&&MC_CH[9].rooms){ for(const i of [1,2,3]){ if(MC_CH[9].rooms[i]) MC_CH[9].rooms[i].enc=true; } }
+
+// v16 POI-21: combat difficulty. MEDIUM is exactly the classic game (identity).
+// EASY = easier fights; HARD = harder; EXTREME = really hard + a win-ramp (heat).
+// Spare rules stay as they already are (Easy any-ACT once, Medium/Hard/Extreme 2/3/4 ordered ACTs).
+// Eased Ultimate Leafy Nightmare (ul_nightmare) is left alone on EASY and MEDIUM.
+
+let WINS=0;
+function heatWins(){
+  if((typeof retState!=='undefined'&&retState==='mc')||(B&&B.cfg&&(B.cfg.mc||B.cfg.mcBoss))||(typeof state!=='undefined'&&state==='mc'))
+    return (MCS&&(MCS.wins|0))||0;
+  return WINS|0;
+}
+function heatLvl(w){ return Math.max(0,Math.min(10,(w==null?heatWins():w)|0)); }
+function diffIsNm(b){ return !!(b&&b.atk==='ul_nightmare'); }
+function diffTune(b){
+  const d=(typeof DIFF==='string'&&DIFFS.includes(DIFF))?DIFF:'medium';
+  const ident={rate:1,dmg:1,ehp:1,heat:0};
+  const nm=diffIsNm(b);
+  if(d==='medium') return ident;
+  if(d==='easy') return nm?ident:{rate:0.70,dmg:0.65,ehp:0.85,heat:0};
+  if(d==='hard') return nm?{rate:1,dmg:1.25,ehp:1.12,heat:0}:{rate:1.22,dmg:1.30,ehp:1.12,heat:0};
+  const h=heatLvl();
+  // EXTREME: really hard at heat 0, ramps per win, capped. Nightmare keeps its eased path (damage/HP only).
+  if(nm) return {rate:1,dmg:1.50+0.04*h,ehp:1.20+0.03*h,heat:h};
+  return {rate:1.40+0.04*h,dmg:1.55+0.05*h,ehp:1.20+0.03*h,heat:h};
+}
+function diffEd(b,dt){
+  const base=b.cfg.dboss?dt:dt*(b.cfg.ease||ENEMY_EASE);
+  const r=diffTune(b).rate;
+  return r===1?base:base*r;
+}
+
+function diffAddWin(){
+  if((typeof retState!=='undefined'&&retState==='mc')||(B&&B.cfg&&(B.cfg.mc||B.cfg.mcBoss))){
+    if(MCS) MCS.wins=(MCS.wins|0)+1;
+  } else WINS=(WINS|0)+1;
+}
+
+{ const _ss=snapState; snapState=function(){ const s=_ss(); s.wins=WINS|0; return s; }; }
+{ const _as=applyState; applyState=function(s){ WINS=(s&&s.wins)|0; return _as(s); }; }
+
+{ const _sb=startBattle; startBattle=function(cfg,ent){
+    _sb(cfg,ent);
+    if(!B) return;
+    const t=diffTune(B);
+    if(t.ehp!==1){ B.max=Math.max(1,Math.round((cfg.hp||B.hp)*t.ehp)); B.hp=B.max; }
+  }; }
+
+{ const _hurt=hurt; hurt=function(){
+    if(B&&B.cfg&&B.cfg.ult) return ulHurt();
+    const t=B?diffTune(B):{dmg:1};
+    if(!B||t.dmg===1) return _hurt();
+    if(B.inv>0) return;
+    const raw=B.cfg.dboss?((B.cfg.rageAtk&&B.hp<=B.max*0.3)?B.cfg.rageAtk:B.cfg.atk):Math.max(1,B.cfg.atk-1);
+    const dmg=Math.max(1,Math.round(raw*t.dmg));
+    P.hp=Math.max(B.cfg.noKill?1:0,P.hp-dmg); B.inv=1.0; B.shake=0.2; SFX.hurt(); if(typeof mcReflect==='function') mcReflect();
+    if(P.hp<=0){ state='gameover'; T=0; }
+  }; }
+
+{ const _ulh=ulHurt; ulHurt=function(){
+    const t=B?diffTune(B):{dmg:1};
+    if(!B||t.dmg===1) return _ulh();
+    const hp=P.hp, st=state;
+    _ulh();
+    if(P.hp>=hp) return;
+    const want=Math.max(1,Math.round((hp-P.hp)*t.dmg));
+    P.hp=Math.max(0,hp-want);
+    if(P.hp>0&&st!=='gameover'&&state==='gameover'){ state=st; }
+    else if(P.hp<=0){ state='gameover'; T=0; }
+  }; }
+
+{ const _sd=startDodge; startDodge=function(){
+    _sd();
+    if(DIFF!=='extreme'||!B||(B.cfg&&B.cfg.ult)) return;
+    const c=B.cfg, at=(c.attacks2&&B.hp<=B.max*0.8)?c.attacks2:c.attacks;
+    let pool=at&&at.length?at.slice():null;
+    if(pool&&c.rage&&B.hp<=B.max*0.8&&!pool.includes(c.rage)) pool=pool.concat([c.rage]);
+    B.atk=(c.rage&&B.hp<=B.max*0.45)?c.rage:(pool?pool[(B.turn-1)%pool.length]:c.pattern);
+  }; }
+
+{ const _uls=ulStartDodge; ulStartDodge=function(b){
+    if(DIFF!=='extreme'||!b) return _uls(b);
+    const f=b.hp/b.max, ph=b.gauntlet?3:f>0.80?1:f>0.45?2:3;
+    if(ph!==b.ulPh){ b.ulPh=ph; b.ulN=0; ulCP=ph===1?b.max:ph===2?Math.floor(b.max*0.80):Math.floor(b.max*0.45); }
+    b.atk=b.gauntlet?'ul_wither':UL_PH[ph][(b.ulN++)%UL_PH[ph].length];
+    b.uev={}; b.target=UL_BOX[ph].slice(); b.wither=0; b.wt=0;
+    b.soul={x:b.target[0]+b.target[2]/2,y:b.target[1]+b.target[3]/2}; b.dur=(UL_DUR[b.atk]||9)+(b.gauntlet?3.4:0);
+  }; }
+
+{ const _eb=endBattle; endBattle=function(kind){
+    if(kind==='win'||kind==='spare') diffAddWin();
+    return _eb(kind);
+  }; }
+
+function drawHeat(){
+  if(!B||DIFF!=='extreme') return;
+  const h=heatLvl(), y=(B.cfg&&B.cfg.waveT>1)?16:4;
+  txt('EXTREME',VW-6,y,'#ff4a4a',8,'right');
+  txt('HEAT '+h,VW-6,y+10,'#ff9a3a',8,'right');
+  const x0=VW-6-10*5;
+  for(let i=0;i<10;i++){ g.fillStyle=i<h?'#ff4a4a':'#401010'; g.fillRect(x0+i*5,y+21,4,4); }
+}
+{ const _wt=drawWaveTag; drawWaveTag=function(){ _wt(); drawHeat(); }; }
+
+// expose for tests
+if(typeof window!=='undefined') Object.assign(window,{diffTune,diffEd,heatLvl,heatWins,WINS_REF:()=>WINS});
 
 window.__G={encounter:(id,lv)=>{ ENC={t:0.05,cfg:pickEnemy(owPool(),lv||1,id)}; },setEnc:v=>{ENC_ON=v;},get ENC(){return ENC},get encSteps(){return encSteps},setSteps:v=>{encSteps=v;encGrace=0;},DUNS,dunDone,leavesGot,BOSSES,ULT_LEAFY,TIERS,
   enterDun:i=>{ LEAFY.questGiven=true; enterDungeon(i); dialog=null; },solve:()=>{ const st=RS(); st.blocks=st.plates.map(p=>p.slice()); st.solved=true; RCACHE=null; },
