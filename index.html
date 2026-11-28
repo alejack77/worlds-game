@@ -5765,10 +5765,10 @@ function footNew(){ return {ret:{room:2,x:56,y:60},hp:(typeof P!=='undefined'&&P
 function footOn(){ return !!(typeof MCS!=='undefined'&&MCS&&MCS.foot); }
 function footStart(){ MCS.foot=footNew(); MCS.foot.hp=P.hp; mcSet('got_roomkey',false); if(typeof rkPick==='function') rkPick(true);
   LABCAM=null; mcEnterRoom(3,0); mcSave();
-  mcCut([{draw:()=>footIntroDraw(),lines:['* CAM 01 - RECORDING... '+FOOT_SUBJ+' ENTERS.','* (A lab worker. Nobody knows his name. In this video, YOU control him.)','* (He dropped his ROOM KEY somewhere in the sea. Find it, then go to the bunker hatch.)']}]); }
+  mcCut([{draw:()=>footIntroDraw(),lines:['* CAM 01 - RECORDING... THE ONE ENTERS.','* (This is the old security tape. In this video, you play as THE ONE.)','* (The ROOM KEY is somewhere in the sea. Find it, then go to the bunker hatch.)','* (Or tap LEAVE / walk into the EXIT door to stop the tape at any time.)']}]); }
 function footIntroDraw(){ g.fillStyle='#050807'; g.fillRect(0,0,VW,VH); labStatic(0.18+0.08*Math.random());
   g.fillStyle='rgba(0,0,0,.65)'; g.fillRect(40,52,320,74); g.strokeStyle='#9f9'; g.lineWidth=1; g.strokeRect(40.5,52.5,319,73);
-  txt('CAM 01 - RECORDING...',200,62,'#cfc',14,'center'); txt(FOOT_SUBJ+' ENTERS',200,86,'#fff',14,'center'); txt('TAPE #13  -  DEEP SEA LAB',200,108,'#7a7',8,'center'); }
+  txt('CAM 01 - RECORDING...',200,62,'#cfc',14,'center'); txt('THE ONE ENTERS',200,86,'#fff',14,'center'); txt('TAPE #13  -  DEEP SEA LAB',200,108,'#7a7',8,'center'); }
 function footCamLabel(){ if(MCS.br) return MCS.br.x>=15.5?['CAM 13','POOLROOMS']:['CAM 12','LEVEL 0 - ???'];
   if(MCS.lab){ const L=MCS.lab; if(L.boss||L.fighting||(typeof labMid==='function'?labMid(L.x,L.y):(Math.abs(L.x-13.5)<3.6&&Math.abs(L.y-13.5)<3.6))) return ['CAM 09','MIDDLE ROOM']; const w=L.x<13.5, n=L.y<13.5;
     return n?(w?['CAM 06','NORTH-WEST WING']:['CAM 07','NORTH-EAST WING']):(w?['CAM 05','ENTRANCE WING']:['CAM 08','SOUTH-EAST WING']); }
@@ -5784,7 +5784,7 @@ function footHUD(){ const F=MCS.foot; if(!F) return; const [cam,area]=footCamLab
   g.fillStyle='rgba(220,255,220,0.7)'; for(const [x,y,a,b] of [[4,16,1,1],[VW-4,16,-1,1],[4,VH-4,1,-1],[VW-4,VH-4,-1,-1]]){ g.fillRect(Math.min(x,x+12*a),y,12,1); g.fillRect(x,Math.min(y,y+12*b),1,12); }
   // REC + subject + date/time on the LEFT (must not cover the minimap on iPad). CAM name stays top-right.
   g.fillStyle='rgba(0,0,0,.45)'; g.fillRect(8,18,128,36); g.fillRect(VW-150,18,142,14);
-  if(Math.floor(T*1.6)%2===0){ g.fillStyle='#f22'; g.beginPath(); g.arc(16,25,4,0,7); g.fill(); } txt('REC',24,20,'#fff',10); txt(FOOT_SUBJ,13,31,'#cfc',7);
+  if(Math.floor(T*1.6)%2===0){ g.fillStyle='#f22'; g.beginPath(); g.arc(16,25,4,0,7); g.fill(); } txt('REC',24,20,'#fff',10); txt('THE ONE',13,31,'#cfc',7);
   txt(footClock(F.t),13,41,'#cfc',7);
   txt(cam+' - '+area,VW-12,20,'#fff',8,'right'); }
 function footLostDraw(k){ g.fillStyle='#000'; g.fillRect(0,0,VW,VH); labStatic(0.55+0.2*Math.random()); g.fillStyle='rgba(0,0,30,.55)'; g.fillRect(0,92,VW,58);
@@ -5799,36 +5799,51 @@ function footOneDraw(end){ g.fillStyle='#07090c'; g.fillRect(0,0,VW,VH); g.fillS
   sprite('knight',0,3,200,166,1.6); }
 function footEnd(){ const F=MCS.foot; MCS.foot=null; if(F) P.hp=Math.min(P.max,F.hp||P.max); const fate=MCS.flags.abom_fate;
   mcEnterRoom(3,(F&&F.ret.room)||2,{x:(F&&F.ret.x)||56,y:(F&&F.ret.y)||60}); mcSave();
-  mcCut([{draw:()=>footOneDraw(true),lines:['* '+FOOT_SUBJ+' swims up, up, up... out of the camera.','* (He escaped THE BACKROOMS.)','* The tape clicks. END OF TAPE.']},
-    {draw:()=>footOneDraw(true),lines:[fate==='spare'?'* THE ONE: ...he let that thing live. And he got out.':'* THE ONE: ...he beat that thing. And he got out.','* THE ONE: So THAT is what happened down here...',
-      fate==='spare'?'* Next to the computer lies the HULL SHELL he left behind. The One takes it.':'* Next to the computer lies the ARM OF THE KILLER he left behind. The One takes it.','* (The One climbs back up the ladder to the coral maze.)']}]); }
+  mcCut([{draw:()=>footOneDraw(true),lines:['* You swim up, up, up... out of the camera.','* (You escaped THE BACKROOMS.)','* The tape clicks. END OF TAPE.']},
+    {draw:()=>footOneDraw(true),lines:[fate==='spare'?'* THE ONE: ...I let that thing live. And I got out.':'* THE ONE: ...I beat that thing. And I got out.','* THE ONE: So THAT is what happened down here...',
+      fate==='spare'?'* Next to the computer lies the HULL SHELL you left behind. The One takes it.':'* Next to the computer lies the ARM OF THE KILLER you left behind. The One takes it.','* (The One climbs back up the ladder to the coral maze.)']}]); }
+
+// v35: stop the tape at any time (even without the ROOM KEY) and return to where you entered.
+function footAbort(){ if(!footOn()) return false;
+  const F=MCS.foot, items=P&&P.inv?P.inv.slice():[], keys=P&&P.keys?P.keys.slice():[];
+  const ret={room:(F&&F.ret&&F.ret.room)||2, x:(F&&F.ret&&F.ret.x)||56, y:(F&&F.ret&&F.ret.y)||60};
+  if(MCS.lab){ MCS.lab.hide=false; MCS.lab.scareT=0; MCS.lab.fighting=false; MCS.lab.boss=false; MCS.lab.luckShow=null; MCS.labPark=MCS.lab; MCS.lab=null; }
+  if(MCS.br){ MCS.br=null; if(typeof brAudioStop==='function') brAudioStop(); }
+  LABRT=null; if(typeof labAudioStop==='function') labAudioStop();
+  if(typeof doomPad==='function') doomPad(false); if(typeof abomLeavePad==='function') abomLeavePad();
+  if(typeof CARDSW!=='undefined') CARDSW=null;
+  MENU=null; if(F) P.hp=Math.min(P.max, F.hp||P.max); MCS.foot=null;
+  mcEnterRoom(3, ret.room, {x:ret.x,y:ret.y}); P.x=ret.x; P.y=ret.y; state='mc';
+  if(P){ if(items) P.inv=items; if(keys) P.keys=keys; }
+  mcSave();
+  mcCut([{draw:()=>footOneDraw(false),lines:['* You stop the tape. The screen goes dark.','* You are back at the security-camera computer.','* (You are THE ONE again. Your items are still with you.)']}]);
+  return true; }
 // ---- hooks ----
 // cam computer: OPEN VIDEO plays the tape (instead of putting The One in the lab)
 { const _cu=labCamUpdate; labCamUpdate=function(dt){ const C=LABCAM; if(C&&C.mode==='pull'){ C.pt+=dt; if(C.pt>1.3){ LABCAM=null; footStart(); } return; } return _cu(dt); }; }
 // hatch: The One just needs the code (cam computer). In the tape, SUBJECT 07 needs the ROOM KEY + card swipe.
 { const rm=MC_CH[3]&&MC_CH[3].rooms[2], h=rm&&rm.objs.find(o=>o.k==='npc'&&o.x===40&&o.y===44); if(h&&h.talk0){ const t0=h.talk0; h.talk=(o)=>{
-    if(footOn()&&!mcFlag('boss_abomination')){ if(!mcFlag('got_roomkey')){ say(['* The old BUNKER hatch. '+FOOT_SUBJ+' knows the code... but next to the lock there is a CARD READER.','* A red light blinks: "ROOM KEY REQUIRED."','* (His ROOM KEY is somewhere in this sea... it could be anywhere!)']); return; }
-      fanfareSmall(); say(['* CLUNK. '+FOOT_SUBJ+' opens the hatch and climbs down the ladder.','* He walks right past the old computer...','* A card reader glows next to the LAB DOOR: "ROOM KEY - PLEASE SWIPE."'],()=>cardSwipeOpen(()=>labStart())); return; }
+    if(footOn()&&!mcFlag('boss_abomination')){ if(!mcFlag('got_roomkey')){ say(['* The old BUNKER hatch. You know the code... but next to the lock there is a CARD READER.','* A red light blinks: "ROOM KEY REQUIRED."','* (The ROOM KEY is somewhere in this sea... or tap LEAVE / the EXIT door to stop the tape.)']); return; }
+      fanfareSmall(); say(['* CLUNK. You open the hatch and climb down the ladder.','* You walk right past the old computer...','* A card reader glows next to the LAB DOOR: "ROOM KEY - PLEASE SWIPE."'],()=>cardSwipeOpen(()=>labStart())); return; }
     return t0(o); }; } }
 // room key: only exists inside the tape (the guy finds it)
 if(MC_CH[3]) for(const r of [0,1,2,3]){ const rm=MC_CH[3].rooms[r]; for(const o of (rm&&rm.objs)||[]) if(o.k==='roomkey'){ const s0=o.show; o.show=()=>footOn()&&s0();
-    o.touch=()=>{ mcSet('got_roomkey'); fanfareSmall(); mcSave(); say(['* '+FOOT_SUBJ+' found his ROOM KEY!','* A plastic lab keycard: "DEEP SEA LAB - ROOM ACCESS".','* (Swipe it at the old bunker hatch in the CORAL MAZE.)']); }; } }
+    o.touch=()=>{ mcSet('got_roomkey'); fanfareSmall(); mcSave(); say(['* You found the ROOM KEY!','* A plastic lab keycard: "DEEP SEA LAB - ROOM ACCESS".','* (Swipe it at the old bunker hatch in the CORAL MAZE.)']); }; } }
 // no random fights / bosses for the guy in the coral rooms
 { const _es=encStep; encStep=function(...a){ if(state==='mc'&&footOn()) return false; return _es(...a); }; }
-{ const _mf=mcFight; mcFight=function(cfg,o){ if(footOn()&&!MCS.lab&&!MCS.br){ say(['* (Nothing happens. This is just a video of '+FOOT_SUBJ+'.)']); return; } return _mf(cfg,o); }; }
+{ const _mf=mcFight; mcFight=function(cfg,o){ if(footOn()&&!MCS.lab&&!MCS.br){ say(['* (Nothing happens. This is just a video.)']); return; } return _mf(cfg,o); }; }
 // death: SIGNAL LOST, then the normal checkpoint respawn
 { const _ac=labAfterCatch; labAfterCatch=function(){ const F=MCS.foot; if(F&&!F.lost){ F.lost={t:0}; return; } _ac();
-    if(F&&dialog){ const L=MCS.lab; dialog.lines=['* ...the tape REWINDS.',L&&L.lastHide?'* '+FOOT_SUBJ+' is back by the last locker he hid in. His keys are still in his pocket.':'* '+FOOT_SUBJ+' is back at the start. His keys are still in his pocket.']; } }; }
+    if(F&&dialog){ const L=MCS.lab; dialog.lines=['* ...the tape REWINDS.',L&&L.lastHide?'* You are back by the last locker you hid in. Your keys are still in your pocket.':'* You are back at the start. Your keys are still in your pocket.']; } }; }
 // end of tape
 { const _bf=brFinish; brFinish=function(){ if(!footOn()) return _bf(); MCS.br=null; brAudioStop(); footEnd(); }; }
 { const _mu=mcUpdate; mcUpdate=function(dt){
-    if(MCS&&MCS.ch===3&&(MCS.lab||MCS.br)&&!MCS.foot) MCS.foot=footNew();   // old saves mid-lab
     const F=MCS&&MCS.foot; if(F){ F.t+=dt; if(F.sw>0) F.sw-=dt;
       if(F.lost){ F.lost.t+=dt; if(F.lost.t>2.2){ F.lost.done=true; labAfterCatch(); F.lost=null; } return; } }
     return _mu(dt); }; }
 { const _md=mcDraw; mcDraw=function(){ const F=MCS&&MCS.foot; if(!F) return _md();
     if(F.lost){ footLostDraw(F.lost.t/2.2); footHUD(); return; }
-    const swap=!MCS.lab&&!MCS.br&&IMG.mc_guy, k=IMG.knight; if(swap) IMG.knight=IMG.mc_guy; try{ _md(); } finally{ if(swap) IMG.knight=k; }
+    _md();
     if(MCS.lab&&typeof DOOM!=='undefined'&&DOOM&&DOOM.dieT>0.6){ footLostDraw((DOOM.dieT-0.6)/1.8); }
     if(MCS.foot) footHUD(); }; }
 
@@ -6792,7 +6807,7 @@ function labScareDraw(){ const L=MCS&&MCS.lab; if(!L||!(L.scareT>0)) return;
 function midCamChrome(cam,area,flick){ if(typeof labStatic==='function'&&(flick<0.7||Math.random()<0.25)) labStatic(0.08+0.1*(1-flick));
   for(let y=0;y<VH;y+=2){ g.fillStyle='rgba(0,0,0,0.14)'; g.fillRect(0,y,VW,1); }
   if(Math.floor(T*1.6)%2===0){ g.fillStyle='#f22'; g.beginPath(); g.arc(16,16,4,0,7); g.fill(); }
-  txt('REC',24,11,'#fff',10); txt('SUBJECT 07',13,22,'#cfc',7);
+  txt('REC',24,11,'#fff',10); txt('THE ONE',13,22,'#cfc',7);
   txt(typeof footClock==='function'?footClock(T*8):'11-03-1999  02:14:07',13,32,'#9c9',7);
   txt((cam||'CAM 09')+' - '+(area||'MIDDLE ROOM'),VW-8,11,'#cfc',8,'right');
   const vg=g.createRadialGradient(VW/2,100,30,VW/2,110,240); vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(0,0,0,0.55)'); g.fillStyle=vg; g.fillRect(0,0,VW,VH); }
@@ -6816,8 +6831,8 @@ function midIntroDraw(shot){ const flick=shot==='close'?(Math.random()<0.35?0.25
   midRoomBG(flick, shot!=='wide');
   const need=typeof labKeysNeed==='function'?labKeysNeed():5;
   const walk=(T*40)%20;
-  if(shot==='wide'){ const gx=200, gy=168-walk*0.4; if(IMG.mc_guy) sprite('mc_guy',Math.floor(T*6)%4,3,gx,gy,1.15,64,64,32,61); midDrawKeys(gx+10,gy-20,Math.min(8,need)); }
-  else if(shot==='close'){ const gx=200, gy=150; if(IMG.mc_guy) sprite('mc_guy',Math.floor(T*4)%4,0,gx,gy,1.8,64,64,32,61); midDrawKeys(gx+18,gy-8,Math.min(8,need)); }
+  if(shot==='wide'){ const gx=200, gy=168-walk*0.4; if(IMG.knight) sprite('knight',Math.floor(T*6)%4,3,gx,gy,1.15,64,64,32,61); midDrawKeys(gx+10,gy-20,Math.min(8,need)); }
+  else if(shot==='close'){ const gx=200, gy=150; if(IMG.knight) sprite('knight',Math.floor(T*4)%4,0,gx,gy,1.8,64,64,32,61); midDrawKeys(gx+18,gy-8,Math.min(8,need)); }
   else if(shot==='appear'){ midRoomBG(0.35,true); if(IMG.b_abomination) sprite('b_abomination',Math.floor(T*8)%4,0,200,118,1.35,128,128,64,110);
     if(Math.floor(T*16)%2){ g.fillStyle='rgba(80,0,0,0.25)'; g.fillRect(0,0,VW,VH); } if(typeof labStatic==='function') labStatic(0.22); }
   midCamChrome(shot==='appear'?'CAM 09':'CAM 09', shot==='appear'?'MIDDLE ROOM — SIGNAL':'MIDDLE ROOM', flick); }
@@ -6826,12 +6841,12 @@ function midIntroStart(then){ const need=typeof labKeysNeed==='function'?labKeys
   const know=labVisit()>=1;
   mcCut([
     {draw:()=>midIntroDraw('wide'), fx:()=>{ beep(160,0.07,'square',0.05); setTimeout(()=>beep(120,0.09,'square',0.04),90); },
-     lines:['* '+clicks,'* CAM 09 - MIDDLE ROOM. SUBJECT 07 walks in, holding the '+w+' keys.']},
+     lines:['* '+clicks,'* CAM 09 - MIDDLE ROOM. THE ONE walks in, holding the '+w+' keys.']},
     {draw:()=>midIntroDraw('close'), fx:()=>{ if(typeof labStaticSnd==='function') labStaticSnd(0.28); },
      lines:['* A close shot. The lights flicker. The tape crackles.','* He stops in the middle of the room.']},
     {draw:()=>midIntroDraw('pause'), lines:['* ...']},
     {draw:()=>midIntroDraw('appear'), fx:()=>{ if(typeof labSfx==='function') labSfx('screech'); else if(typeof labScream==='function') labScream(); },
-     lines:know?['* Jump-cut. It was already waiting. It remembers him.','* THE ABOMINATION.']:['* Jump-cut. Something drops from the ceiling. Eight legs. Too many eyes.','* THE ABOMINATION is locked in here WITH him!']}
+     lines:know?['* Jump-cut. It was already waiting. It remembers you.','* THE ABOMINATION.']:['* Jump-cut. Something drops from the ceiling. Eight legs. Too many eyes.','* THE ABOMINATION is locked in here WITH you!']}
   ], then); }
 
 // ---- hatch re-entry + harder backrooms ----
@@ -11087,12 +11102,92 @@ function sigBelowBeamDraw(){
   };
 }
 
+// ======================= v35: leave the SUBJECT 07 tape; play as THE ONE =======================
+// After leaving the lab, MCS.foot used to stay on with no way out except finishing the Backrooms
+// (and the hatch needs the ROOM KEY). LEAVE, the gold button, L, the green LEAVE slide, and a
+// visible EXIT door now stop the tape and return you to the cam computer, even with no key.
+// The player uses THE ONE's knight sprite (not the lab-worker sheet). Auto-creating the tape
+// when The One simply entered the lab is removed in footage.js.
+
+function footInSea(){ return !!(typeof footOn==='function'&&footOn()&&MCS&&!MCS.lab&&!MCS.br&&state==='mc'&&MCS.ch===3); }
+function footExitPos(){
+  // Room 2 landing is (56,60) after leaving the lab — put the door next to that spot.
+  if(MCS.room===2) return {x:88,y:108};
+  if(MCS.room===0) return {x:40,y:124};
+  if(MCS.room===1) return {x:40,y:120};
+  if(MCS.room===3) return {x:40,y:44};
+  return {x:40,y:120};
+}
+function footExitHit(){
+  if(!footInSea()||MCS.cut||dialog||MENU) return false;
+  const d=footExitPos(), dx=P.x-d.x, dy=P.y-d.y;
+  return dx*dx+dy*dy<26*26;
+}
+function footExitDraw(){
+  if(!footInSea()||MCS.cut) return;
+  const d=footExitPos(), X=Math.round(d.x), Y=Math.round(d.y);
+  g.fillStyle='#07090c'; g.fillRect(X-12,Y-36,24,38);
+  g.fillStyle='#1a3040'; g.fillRect(X-10,Y-34,20,34);
+  g.fillStyle='#7ed8ff'; g.fillRect(X-10,Y-34,20,2); g.fillRect(X-10,Y-34,2,34); g.fillRect(X+8,Y-34,2,34); g.fillRect(X-10,Y-2,20,2);
+  g.fillStyle='#c8f4ff'; g.fillRect(X-2,Y-16,3,5);
+  txt('EXIT',X,Y-42,'#7ed8ff',8,'center');
+  if(Math.floor(T*2)%2) txt('STOP TAPE',X,Y+4,'#ffe14a',6,'center');
+}
+function footLeavePrompt(then){
+  say(['* Stop the tape and go back to the security-camera computer?','* You will be THE ONE again. Your items will stay with you.','* (You do not need the ROOM KEY to leave.)'], then);
+}
+
+// LEAVE is available in the coral sea during the tape (not only in the lab / Backrooms).
+{ const _in=typeof abomInArea==='function'?abomInArea:null;
+  abomInArea=function(){ if(typeof footOn==='function'&&footOn()&&state==='mc') return true; return _in?_in():false; }; }
+{ const _al=typeof abomLeave==='function'?abomLeave:null;
+  abomLeave=function(force){ if(typeof footOn==='function'&&footOn()) return (typeof footAbort==='function'?footAbort(force):false); return _al?_al(force):false; }; }
+{ const _tap=typeof abomLeaveTap==='function'?abomLeaveTap:null;
+  abomLeaveTap=function(force){
+    if(typeof footOn==='function'&&footOn()){
+      if(typeof abomInArea==='function'&&!abomInArea()) return;
+      if(!force && (dialog||(MCS&&MCS.cut)||MENU)) return;
+      if(force){ footAbort(true); return; }
+      footLeavePrompt(()=>footAbort(true));
+      return;
+    }
+    return _tap?_tap(force):undefined;
+  };
+}
+{ const _esc=typeof brSlideEscape==='function'?brSlideEscape:null;
+  if(_esc) brSlideEscape=function(){ if(typeof footOn==='function'&&footOn()) return footAbort(true); return _esc(); }; }
+
+// Gold LEAVE button also says STOP TAPE while the footage is running.
+{ const _ad=typeof abomLeaveDraw==='function'?abomLeaveDraw:null;
+  if(_ad) abomLeaveDraw=function(){
+    _ad();
+    if(typeof footOn==='function'&&footOn()&&state==='mc'&&!MCS.cut&&!dialog&&!MENU){
+      const r=typeof abomLeaveRect==='function'?abomLeaveRect():{x:8,y:174,w:78,h:24};
+      txt('STOP TAPE',r.x+r.w/2,r.y+16,'#7ed8ff',6,'center');
+    }
+  };
+}
+
+// L key / leave button also work in the coral sea during the tape; walking into the EXIT door stops it.
+{ const _mu=mcUpdate; mcUpdate=function(dt){
+    if(pressed.leave && typeof footOn==='function'&&footOn() && !(MCS.lab||MCS.br)){
+      if(typeof abomLeaveTap==='function') abomLeaveTap();
+    }
+    if(footExitHit() && !dialog && !(MCS&&MCS.cut) && !MENU){
+      const d=footExitPos(); P.x=d.x+(P.x>=d.x?22:-22);
+      footLeavePrompt(()=>footAbort(true));
+    }
+    return _mu(dt);
+  };
+}
+{ const _md=mcDraw; mcDraw=function(){ _md(); if(footInSea()){ footExitDraw(); if(typeof abomLeaveDraw==='function') abomLeaveDraw(); } }; }
+
 window.__G={encounter:(id,lv)=>{ ENC={t:0.05,cfg:pickEnemy(owPool(),lv||1,id)}; },setEnc:v=>{ENC_ON=v;},get ENC(){return ENC},get encSteps(){return encSteps},setSteps:v=>{encSteps=v;encGrace=0;},DUNS,dunDone,leavesGot,BOSSES,ULT_LEAFY,TIERS,
   enterDun:i=>{ LEAFY.questGiven=true; enterDungeon(i); dialog=null; },solve:()=>{ const st=RS(); st.blocks=st.plates.map(p=>p.slice()); st.solved=true; RCACHE=null; },
   giveLeaves:n=>{ for(let i=0;i<8;i++){ leavesGot[i]=i<n; dunDone[i]=i<n; if(i<n&&!P.keys.includes('leaf'+i)) P.keys.push('leaf'+i); } stones=n; dun1Done=n>0; LEAFY.questGiven=true; },DR:()=>DR(),bossBattle:c=>startBattle(c,{boss:true}),areaNpcs:()=>areaNpcs(),gbGapCheck:n=>gbGapCheck(n),gbVolley:(k,p)=>gbVolley(k,p,[140,104,120,86]),startReveal:()=>startReveal(),get REV(){return REV},BIG_PAPER,FINAL_A,get bpBeaten(){return bpBeaten},get glubbbossBeaten(){return glubbbossBeaten},setGboss:v=>{glubbbossBeaten=v},get leafyToFactory(){return leafyToFactory},setLTF:v=>{leafyToFactory=v},get PEND_SAY(){return PEND_SAY},saveGame:()=>saveGame(),readSlot:i=>readSlot(i),get SLOT(){return SLOT},get FS(){return FS},get PLAYT(){return PLAYT},snapState:()=>snapState(),openFiles:()=>openFiles(),RARE_P,setRare:p=>{RARE_P_OVR=p},LEAFY,invGroups:()=>invGroups(),setArea:k=>setArea(k),goArea:(k,sd)=>goArea(k,sd),get curA(){return curA},AREAS,AREA_NPCS,get hasFrostDrawing(){return hasFrostDrawing},blocked:(x,y)=>blocked(x,y),TP_SEEN,TP_PADS,PUZ,AREA_NAMES,openTP:()=>openTP(),teleportTo:k=>teleportTo(k),get slide(){return D&&D.slide},dunWave:(p,l)=>dunWave(p,l),tryPush:(bx,by,dx,dy)=>{ D.push=1; tryPush([bx,by],dx,dy,0); },AREAS,get MW(){return MW},get cam(){return cam},get AREA_BANNER(){return AREA_BANNER},exitDun:()=>exitDungeon(),ulFight:()=>{ startBattle(ULT_LEAFY,null); },get ulCP(){return ulCP},giveMap:()=>{ hasGlubbbMap=true; if(!P.keys.includes('gmap')) P.keys.push('gmap'); },giveFrost:()=>{ hasFrostDrawing=true; if(!P.keys.includes('fdraw')) P.keys.push('fdraw'); },get CP(){return CP},setCPraw:c=>{CP=c;},DUN_CPS,SHOP_DEFS,CHARMS,GLUBBB_ITEMS,hasAllGlubbb:()=>hasAllGlubbb(),get CUR_SHOP(){return CUR_SHOP},respawnCP:()=>respawnCP(),die:()=>{ state='gameover'; T=0; },get WS(){return WS},unlockMC,mcUnlocked,get FIN(){return FIN},betrayal,get endLeaf(){return endLeaf},
   get hasGlubbbMap(){return hasGlubbbMap},GLUBBB,get MENU(){return MENU},SHOP,SHOPKEEP,FLOWER,ITEMS,testAttack:(id,atk)=>{ const cfg=id==='ultleafy'?ULT_LEAFY:id==='bigpaper'?BIG_PAPER:BOSSES[id]||MC_BOSS[id]||ENEMIES.find(e=>e.id===id); startBattle(cfg,null); startDodge(); B.atk=atk; B.box=B.target.slice(); return !!PATTERNS[atk]; },get D(){return D},get stones(){return stones},get dun1Done(){return dun1Done},ENT,enterRoom:(i,f)=>enterRoom(i,f),get endKind(){return endKind},get state(){return state},P,get B(){return B},get enemies(){return enemies},LEAFY,get dialog(){return dialog}};
 
-const GAME_BUILD='300f09d4b1e1bd56';
+const GAME_BUILD='15cc0314bf57253b';
 function updSaveAll(){ try{ if(typeof MCS!=='undefined'&&MCS&&typeof mcSave==='function') mcSave(); }catch(e){}
   try{ if(typeof saveGame==='function'&&typeof state==='string'&&state!=='mc'&&state!=='mcmenu') saveGame(); }catch(e){} }
 function updShow(build){ if(window._updOffer) return; window._updOffer=build; const el=document.getElementById('upd'); if(!el) return;
