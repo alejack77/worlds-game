@@ -5692,7 +5692,12 @@ function brDraw(){ brInit(); const S=MCS.br, W=BR_W, H=BR_H, buf=BR.img.data, TX
   }
   let fogC=pool?[188,210,204]:[118,104,44], fogK=pool?0.058:0.11;
   if(BR.zone==='office'){ fogC=[20,18,16]; fogK=0.16; }
-  else if(BR.zone==='red'){ fogC=[40,0,0]; fogK=0.14; }
+  else if(BR.zone==='red'){
+    const al=0.5+0.5*Math.sin((S.t||0)*7.4);
+    const flick=((Math.floor((S.t||0)*9)%23)===0||(Math.floor((S.t||0)*15)%41)===0)?0.45:1;
+    fl=(0.78+0.22*al)*flick;
+    fogC=[42+36*al, 8, 10]; fogK=0.055+0.018*al;
+  }
   else if(BR.zone==='garage'){ fogC=[50,50,44]; fogK=0.1; }
   else if(BR.zone==='fields'){ fogC=[140,180,210]; fogK=0.05; }
   else if(BR.zone==='thalasso'){ fogC=[2,8,18]; fogK=0.05; }
@@ -7648,7 +7653,7 @@ const BR_LEVELS=[
   {id:'home',   name:'THE BACKROOMS',  safe:false},
   {id:'pool',   name:'THE POOLROOMS',  safe:true},   // same map as home; used for labels
   {id:'office', name:'THE OFFICES',    safe:true},
-  {id:'red',    name:'THE RED HALLS',  safe:true},
+  {id:'red',    name:'THE RED HALLS',  safe:false},
   {id:'garage', name:'THE GARAGE',     safe:true},
   {id:'fields', name:'THE FIELDS',     safe:true}
 ];
@@ -9945,12 +9950,409 @@ function poolCreepAudio(dt){
   if(_bs) brStart=function(){ if(BR){ BR._pcreep=null; BR._pcTiles=null; BR._pcimg=null; } return _bs.apply(this,arguments); };
 }
 
+// POI-60: THE RED HALLS — one long straight hospital corridor in evacuation.
+// Furniture blocks the path so you have to weave. Killer entities chase from
+// behind. No gore. Key + LEAVE / KEEP EXPLORING slides sit at the far end.
+// The LAB door stays far from those slides (POI-59).
+(function(){
+  if(typeof BR_LEVELS!=='undefined'){
+    const z=BR_LEVELS.find(x=>x.id==='red'); if(z) z.safe=false;
+  }
+  if(typeof brLevelSafe==='function'){
+    const _safe=brLevelSafe;
+    brLevelSafe=function(){
+      const id=typeof brZoneId==='function'?brZoneId():'home';
+      if(id==='red') return false;
+      return _safe();
+    };
+  }
+})();
+
+function redIn(){ return (typeof brZoneId==='function'?brZoneId():'')==='red'; }
+
+function redGenHall(seed){
+  let s=seed||4242; const rnd=()=>((s=(s*16807)%2147483647)/2147483647);
+  const N=typeof BR_N==='number'?BR_N:71;
+  const M=[]; for(let y=0;y<N;y++){ const row=[]; for(let x=0;x<N;x++) row.push('#'); M.push(row); }
+  const y0=7, y1=13, mid=(y0+y1)/2, x0=2, x1=N-3;
+  for(let x=x0;x<=x1;x++){
+    for(let y=y0;y<=y1;y++) M[y][x]='.';
+    M[y0-1][x]='y'; M[y1+1][x]='y';
+  }
+  for(let y=y0-1;y<=y1+1;y++){ M[y][x0-1]='y'; M[y][x1+1]='y'; }
+
+  // shallow ward alcoves off the sides (LAB door can sit in one, far from the slides)
+  const alcoves=[[22,y0-3,4,3],[36,y1+1,4,3],[14,y0-3,3,3]];
+  for(const [ax,ay,aw,ah] of alcoves){
+    for(let y=ay;y<ay+ah;y++) for(let x=ax;x<ax+aw;x++){
+      if(y>0&&x>0&&y<N-1&&x<N-1) M[y][x]='.';
+    }
+    // doorway already open into the hall
+    const doorY=ay<y0?y0-1:y1+1;
+    for(let x=ax+1;x<ax+aw-1;x++) if(M[doorY]) M[doorY][x]='.';
+  }
+
+  const props=[], solids=[];
+  const add=(k,x,y,w,h,extra)=>{
+    solids.push({k,x,y,w,h});
+    props.push(Object.assign({k,x,y}, extra||{}));
+  };
+
+  const kinds=['bed','bed','chair','wheel','iv','trolley','bed','chair','wheel','iv'];
+  let x=10, side=1;
+  while(x<x1-11){
+    const k=kinds[Math.floor(rnd()*kinds.length)];
+    let w=0.7,h=0.55;
+    if(k==='bed'){ w=1.75; h=0.78; }
+    else if(k==='trolley'){ w=1.15; h=0.62; }
+    else if(k==='wheel'){ w=0.72; h=0.72; }
+    else if(k==='iv'){ w=0.32; h=0.32; }
+    else { w=0.48; h=0.48; }
+    const north=side>0;
+    let py=north?(y0+0.15+h/2):(y1+0.85-h/2);
+    // occasional mid-hall blocker with a gap on one side
+    if(rnd()<0.16 && k!=='bed'){ py=mid+0.5+(north?-1.15:1.15); }
+    const px=x+w/2;
+    add(k,px,py,w,h);
+    side*=-1;
+    x+=2.9+rnd()*1.7;
+  }
+
+  // signs along the hall
+  props.push({k:'exit',x:x1-3.2,y:y0+0.18});
+  props.push({k:'exit',x:Math.floor((x0+x1)/2)+0.5,y:y0+0.18});
+  props.push({k:'ward',x:18.5,y:y0+0.16,label:'WARD 3'});
+  props.push({k:'ward',x:32.5,y:y1-0.16,label:'ICU'});
+  props.push({k:'ward',x:48.5,y:y0+0.16,label:'EVACUATION ROUTE'});
+
+  // drop furniture that would close the hall
+  function blocked(px,py,r){
+    if(!M[Math.floor(py)]||M[Math.floor(py)][Math.floor(px)]!=='.') return true;
+    for(const s of solids){
+      const cx=Math.max(s.x-s.w/2, Math.min(px, s.x+s.w/2));
+      const cy=Math.max(s.y-s.h/2, Math.min(py, s.y+s.h/2));
+      if(Math.hypot(px-cx,py-cy)<r) return true;
+    }
+    return false;
+  }
+  const sx=x0+3.5, sy=mid+0.5;
+  const key={x:x1-6.5,y:mid+0.5};
+  const slideLeave={x:x1-2.6,y:mid-0.9};
+  const slideExplore={x:x1-2.6,y:mid+1.4};
+  // keep the ends clear
+  const keepClear=(cx,cy,rad)=>{
+    for(let i=solids.length-1;i>=0;i--){
+      if(Math.hypot(solids[i].x-cx,solids[i].y-cy)<rad){ solids.splice(i,1); }
+    }
+    for(let i=props.length-1;i>=0;i--){
+      const p=props[i];
+      if((p.k==='bed'||p.k==='chair'||p.k==='wheel'||p.k==='iv'||p.k==='trolley') && Math.hypot(p.x-cx,p.y-cy)<rad) props.splice(i,1);
+    }
+  };
+  keepClear(sx,sy,4.5);
+  keepClear(key.x,key.y,2.4);
+  keepClear(slideLeave.x,slideLeave.y,2.2);
+  keepClear(slideExplore.x,slideExplore.y,2.2);
+
+  // BFS weave-path; remove the last blockers until start can reach the slides
+  const reach=(tx,ty)=>{
+    const sc=2, W=N*sc, H=N*sc, d=new Int8Array(W*H), q=[(Math.floor(sy*sc)*W+Math.floor(sx*sc))];
+    d[q[0]]=1;
+    const goal=Math.floor(ty*sc)*W+Math.floor(tx*sc);
+    for(let h=0;h<q.length;h++){
+      const i=q[h]; if(i===goal) return true;
+      const x=i%W, y=(i-x)/W;
+      for(const [a,b] of [[1,0],[-1,0],[0,1],[0,-1]]){
+        const nx=x+a, ny=y+b, j=ny*W+nx;
+        if(nx<0||ny<0||nx>=W||ny>=H||d[j]) continue;
+        if(blocked((nx+0.5)/sc,(ny+0.5)/sc,0.24)) continue;
+        d[j]=1; q.push(j);
+      }
+    }
+    return false;
+  };
+  while(solids.length && !reach(slideLeave.x, slideLeave.y)){
+    const last=solids.pop();
+    for(let i=props.length-1;i>=0;i--) if(props[i].x===last.x && props[i].y===last.y && props[i].k===last.k) props.splice(i,1);
+  }
+
+  BR._redSolids=solids;
+  BR._redProps=props;
+  BR._redHall={x0,x1,y0,y1,mid,sx,sy};
+  return {M, sx, sy, levelKey:key, slideLeave, slideExplore, props:props};
+}
+
+{ const _gen=typeof brGenZone==='function'?brGenZone:null;
+  if(_gen) brGenZone=function(id, seed){
+    if(id==='red') return redGenHall(seed);
+    return _gen(id, seed);
+  };
+}
+
+function redBlocked(x,y,r){
+  if(!redIn()) return false;
+  r=r||0.22;
+  const sols=BR&&BR._redSolids||[];
+  for(const s of sols){
+    const cx=Math.max(s.x-s.w/2, Math.min(x, s.x+s.w/2));
+    const cy=Math.max(s.y-s.h/2, Math.min(y, s.y+s.h/2));
+    if(Math.hypot(x-cx,y-cy)<r) return true;
+  }
+  return false;
+}
+
+function redHallImgs(){
+  if(BR&&BR._redIm) return BR._redIm;
+  const mk=typeof labTiny==='function'?labTiny:null;
+  if(!mk) return {};
+  const im={};
+  im.bed=mk([
+    '............................',
+    '......mmmmmmmmmmmmmm........',
+    '.....mwwwwwwwwwwwwwwm.......',
+    'ssssswwwwwwwwwwwwwwwwssssss',
+    's....wwwwwwwwwwwwwwww....s.',
+    'sssssssssssssssssssssssssss',
+    '..ii.................ii....',
+    '..ii.................ii....'
+  ],{m:[70,72,80],w:[230,232,240],s:[120,122,128],i:[40,42,48]});
+  im.wheel=mk([
+    '........ccc........',
+    '.......c..c........',
+    'ooooo..c..c..oooo..',
+    'o...o.cccccc.o..o..',
+    'o.x.o........o.x.o.',
+    'o...o........o...o.',
+    'ooooo........ooooo.'
+  ],{c:[70,74,82],o:[30,32,36],x:[200,200,210]});
+  im.chair=mk([
+    '..bbbb..',
+    '..b..b..',
+    '..bbbb..',
+    '.bbbbbb.',
+    '.l....l.',
+    '.l....l.'
+  ],{b:[90,50,48],l:[50,30,28]});
+  im.iv=mk([
+    '...ss...',
+    '..s..s..',
+    '..sBBs..',
+    '...ss...',
+    '....i...',
+    '....i...',
+    '....i...',
+    '...iii..',
+    '....i...'
+  ],{s:[160,165,175],B:[70,140,200],i:[150,150,158]});
+  im.trolley=mk([
+    'ssssssssssss',
+    's..........s',
+    's.mmmmmmmm.s',
+    'ssssssssssss',
+    'ii........ii',
+    'ii........ii'
+  ],{s:[150,155,165],m:[90,40,40],i:[40,42,48]});
+  im.exit=mk([
+    'gggggggggggg',
+    'g..........g',
+    'g.EEEE.X.T.g',
+    'g.E....X.T.g',
+    'g.EEE..X.T.g',
+    'g.E.....T..g',
+    'g.EEEE..T..g',
+    'g..........g',
+    'gggggggggggg'
+  ],{g:[8,130,50],E:[180,255,190],X:[180,255,190],T:[180,255,190]});
+  im.ward=mk([
+    'wwwwwwwwwwwwwwww',
+    'w..............w',
+    'w..............w',
+    'w..............w',
+    'wwwwwwwwwwwwwwww'
+  ],{w:[210,200,170]});
+  if(BR) BR._redIm=im;
+  return im;
+}
+
+function redDrawProps(){
+  if(!redIn()) return;
+  const im=redHallImgs();
+  const list=(BR&&BR._redProps)||(BR&&BR.props)||[];
+  for(const p of list){
+    if(p.k==='bed'&&im.bed) brBlitSprite(im.bed,p.x,p.y,0.42,false,false);
+    else if(p.k==='wheel'&&im.wheel) brBlitSprite(im.wheel,p.x,p.y,0.4,false,false);
+    else if(p.k==='chair'&&im.chair) brBlitSprite(im.chair,p.x,p.y,0.38,false,false);
+    else if(p.k==='iv'&&im.iv) brBlitSprite(im.iv,p.x,p.y,0.82,false,false);
+    else if(p.k==='trolley'&&im.trolley) brBlitSprite(im.trolley,p.x,p.y,0.4,false,false);
+    else if(p.k==='exit'&&im.exit) brBlitSprite(im.exit,p.x,p.y,0.32,false,true);
+    else if(p.k==='ward'&&im.ward) brBlitSprite(im.ward,p.x,p.y,0.24,false,false);
+  }
+}
+
+function redDrawOverlay(){
+  if(!redIn()||typeof g==='undefined') return;
+  const S=MCS&&MCS.br; if(!S) return;
+  const t=S.t||0;
+  const al=0.5+0.5*Math.sin(t*7.4);
+  const strobe=((Math.floor(t*4)%8)===0);
+  g.fillStyle='rgba(140,0,0,'+(0.04+0.07*al+(strobe?0.06:0))+')';
+  g.fillRect(0,0,VW,VH);
+  // flashing EXIT / EVACUATE hint at the top
+  if(al>0.7 || strobe){
+    txt('EVACUATION IN PROGRESS',200,20,'#ffd0d0',8,'center');
+  }
+}
+
+function redHallAudio(dt){
+  if(!redIn()||!AC||dialog) { redHallStopAudio(); return; }
+  const S=MCS&&MCS.br; if(!S||S._poiShot||S.noRide) return;
+  if(BR._redSiren && BR._redSiren.ac===AC){
+    // already running
+    const al=0.5+0.5*Math.sin((S.t||0)*7.4);
+    try{ BR._redSiren.g.gain.setTargetAtTime(0.04+0.03*al, AC.currentTime, 0.05); }catch(e){}
+    return;
+  }
+  redHallStopAudio();
+  try{
+    const t=AC.currentTime;
+    const g1=AC.createGain(); g1.gain.setValueAtTime(0.05,t);
+    g1.connect(AC.destination);
+    const o=AC.createOscillator(); o.type='sawtooth';
+    const lfo=AC.createOscillator(); lfo.type='square'; lfo.frequency.value=0.85;
+    const lg=AC.createGain(); lg.gain.value=160;
+    lfo.connect(lg); lg.connect(o.frequency);
+    o.frequency.setValueAtTime(620,t);
+    // slight low alarm thump
+    const o2=AC.createOscillator(); o2.type='sine'; o2.frequency.value=140;
+    const g2=AC.createGain(); g2.gain.value=0.03; o2.connect(g2); g2.connect(AC.destination);
+    o.connect(g1); o.start(); lfo.start(); o2.start();
+    BR._redSiren={o,lfo,o2,g:g1,g2,ac:AC};
+  }catch(e){ BR._redSiren=null; }
+}
+function redHallStopAudio(){
+  const s=BR&&BR._redSiren; if(!s) return;
+  try{ s.o.stop(); s.lfo.stop(); s.o2.stop(); }catch(e){}
+  try{ s.g.disconnect(); if(s.g2) s.g2.disconnect(); }catch(e){}
+  if(BR) BR._redSiren=null;
+}
+
+function redHallBegin(){
+  const S=MCS&&MCS.br; if(!S||!redIn()) return;
+  // face down the hall
+  S.a=0;
+  if(S.poi){ S.poi.watch=S.poi.echo=S.poi.door=S.poi.caller=S.poi.still=null; S.poi.entJS=null; }
+  const hall=BR._redHall||{sx:S.x,sy:S.y,x0:2,mid:10};
+  const kinds=['echo','watch','door','caller','still','echo','watch','caller'];
+  const pack=[];
+  for(let i=0;i<8;i++){
+    pack.push({
+      k:kinds[i],
+      x:hall.x0+0.7+(i%3)*0.55,
+      y:hall.mid+0.5+((i%2)?-1.4:1.4)+((i%3)-1)*0.15,
+      spd:1.68+i*0.05,
+      bob:Math.random()*4
+    });
+  }
+  S.redChase={pack, t:0, grace:0.7};
+}
+
+function redHallResetChase(){
+  const S=MCS&&MCS.br; if(!S) return;
+  redHallBegin();
+  if(S.redChase) S.redChase.grace=1.1;
+}
+
+function redMoveEnt(e,dt,tx,ty){
+  const a=Math.atan2(ty-e.y, tx-e.x);
+  const tryStep=(ang,spd)=>{
+    const nx=e.x+Math.cos(ang)*spd*dt, ny=e.y+Math.sin(ang)*spd*dt;
+    if(typeof brFloor==='function' && !brFloor(brCell(nx,ny))) return false;
+    if(redBlocked(nx,ny,0.28)) return false;
+    e.x=nx; e.y=ny; return true;
+  };
+  if(tryStep(a,e.spd)) return;
+  for(const off of [0.55,-0.55,1.15,-1.15,Math.PI/2,-Math.PI/2,2.4,-2.4]){
+    if(tryStep(a+off,e.spd*0.95)) return;
+  }
+}
+
+function redHallTick(dt){
+  if(!redIn()){ redHallStopAudio(); return; }
+  const S=MCS&&MCS.br; if(!S) return;
+  redHallAudio(dt);
+  if(S.slideAnim||dialog||MENU||MCS.cut||S.noRide||S._poiShot) return;
+  if(!S.redChase||!S.redChase.pack) redHallBegin();
+  const C=S.redChase; C.t+=dt; C.grace-=dt;
+  if(C.grace>0) return;
+  for(const e of C.pack){
+    e.bob=(e.bob||0)+dt;
+    redMoveEnt(e,dt,S.x,S.y);
+    if(Math.hypot(e.x-S.x,e.y-S.y)<0.62){
+      if(typeof poiKick==='function'){
+        poiKick(['* Something grabs you from behind.','* You black out. You are back at the start of the hall.','* (Your items are still with you.)']);
+      }
+      redHallResetChase();
+      return;
+    }
+  }
+}
+
+function redDrawChase(){
+  if(!redIn()) return;
+  const S=MCS&&MCS.br, C=S&&S.redChase; if(!C||!C.pack) return;
+  if(S._poiShot && C._hideShot) return;
+  const map={echo:['ent_echo',64,64,0.85],watch:['ent_watcher',64,64,0.9],door:['ent_door',64,64,0.95],caller:['ent_caller',64,64,0.88],still:['ent_still',64,128,1.25]};
+  for(const e of C.pack){
+    const m=map[e.k]||map.echo;
+    const fr=typeof poiFrames==='function'?poiFrames(m[0],m[1],m[2]):null;
+    if(!fr||!fr.length) continue;
+    const i=Math.floor((e.bob||0)*7)%fr.length;
+    if(typeof brBlitFrame==='function') brBlitFrame(fr[i], e.x, e.y, m[3], false, false);
+    else if(typeof brBlitSprite==='function') brBlitSprite(fr[i], e.x, e.y, m[3], true, false);
+  }
+}
+
+{ const _props=typeof brDrawPoolProps==='function'?brDrawPoolProps:null;
+  if(_props) brDrawPoolProps=function(){ _props(); redDrawProps(); redDrawChase(); };
+}
+{ const _bu=typeof brUpdate==='function'?brUpdate:null;
+  if(_bu) brUpdate=function(dt){
+    const S=MCS&&MCS.br, ox=S&&S.x, oy=S&&S.y;
+    const r=_bu(dt);
+    const S2=MCS&&MCS.br;
+    if(S2&&redIn()&&ox!=null){
+      if(redBlocked(S2.x,S2.y,0.22)){
+        if(!redBlocked(S2.x,oy,0.22)) S2.y=oy;
+        else if(!redBlocked(ox,S2.y,0.22)) S2.x=ox;
+        else { S2.x=ox; S2.y=oy; }
+      }
+      redHallTick(dt);
+    } else if(!redIn()) redHallStopAudio();
+    return r;
+  };
+}
+{ const _bd=typeof brDraw==='function'?brDraw:null;
+  if(_bd) brDraw=function(){
+    const r=_bd.apply(this,arguments);
+    if(redIn()) redDrawOverlay();
+    return r;
+  };
+}
+{ const _ez=typeof brEnterZone==='function'?brEnterZone:null;
+  if(_ez) brEnterZone=function(id){
+    if(id!=='red') redHallStopAudio();
+    const r=_ez(id);
+    if(id==='red') redHallBegin();
+    return r;
+  };
+}
+
 window.__G={encounter:(id,lv)=>{ ENC={t:0.05,cfg:pickEnemy(owPool(),lv||1,id)}; },setEnc:v=>{ENC_ON=v;},get ENC(){return ENC},get encSteps(){return encSteps},setSteps:v=>{encSteps=v;encGrace=0;},DUNS,dunDone,leavesGot,BOSSES,ULT_LEAFY,TIERS,
   enterDun:i=>{ LEAFY.questGiven=true; enterDungeon(i); dialog=null; },solve:()=>{ const st=RS(); st.blocks=st.plates.map(p=>p.slice()); st.solved=true; RCACHE=null; },
   giveLeaves:n=>{ for(let i=0;i<8;i++){ leavesGot[i]=i<n; dunDone[i]=i<n; if(i<n&&!P.keys.includes('leaf'+i)) P.keys.push('leaf'+i); } stones=n; dun1Done=n>0; LEAFY.questGiven=true; },DR:()=>DR(),bossBattle:c=>startBattle(c,{boss:true}),areaNpcs:()=>areaNpcs(),gbGapCheck:n=>gbGapCheck(n),gbVolley:(k,p)=>gbVolley(k,p,[140,104,120,86]),startReveal:()=>startReveal(),get REV(){return REV},BIG_PAPER,FINAL_A,get bpBeaten(){return bpBeaten},get glubbbossBeaten(){return glubbbossBeaten},setGboss:v=>{glubbbossBeaten=v},get leafyToFactory(){return leafyToFactory},setLTF:v=>{leafyToFactory=v},get PEND_SAY(){return PEND_SAY},saveGame:()=>saveGame(),readSlot:i=>readSlot(i),get SLOT(){return SLOT},get FS(){return FS},get PLAYT(){return PLAYT},snapState:()=>snapState(),openFiles:()=>openFiles(),RARE_P,setRare:p=>{RARE_P_OVR=p},LEAFY,invGroups:()=>invGroups(),setArea:k=>setArea(k),goArea:(k,sd)=>goArea(k,sd),get curA(){return curA},AREAS,AREA_NPCS,get hasFrostDrawing(){return hasFrostDrawing},blocked:(x,y)=>blocked(x,y),TP_SEEN,TP_PADS,PUZ,AREA_NAMES,openTP:()=>openTP(),teleportTo:k=>teleportTo(k),get slide(){return D&&D.slide},dunWave:(p,l)=>dunWave(p,l),tryPush:(bx,by,dx,dy)=>{ D.push=1; tryPush([bx,by],dx,dy,0); },AREAS,get MW(){return MW},get cam(){return cam},get AREA_BANNER(){return AREA_BANNER},exitDun:()=>exitDungeon(),ulFight:()=>{ startBattle(ULT_LEAFY,null); },get ulCP(){return ulCP},giveMap:()=>{ hasGlubbbMap=true; if(!P.keys.includes('gmap')) P.keys.push('gmap'); },giveFrost:()=>{ hasFrostDrawing=true; if(!P.keys.includes('fdraw')) P.keys.push('fdraw'); },get CP(){return CP},setCPraw:c=>{CP=c;},DUN_CPS,SHOP_DEFS,CHARMS,GLUBBB_ITEMS,hasAllGlubbb:()=>hasAllGlubbb(),get CUR_SHOP(){return CUR_SHOP},respawnCP:()=>respawnCP(),die:()=>{ state='gameover'; T=0; },get WS(){return WS},unlockMC,mcUnlocked,get FIN(){return FIN},betrayal,get endLeaf(){return endLeaf},
   get hasGlubbbMap(){return hasGlubbbMap},GLUBBB,get MENU(){return MENU},SHOP,SHOPKEEP,FLOWER,ITEMS,testAttack:(id,atk)=>{ const cfg=id==='ultleafy'?ULT_LEAFY:id==='bigpaper'?BIG_PAPER:BOSSES[id]||MC_BOSS[id]||ENEMIES.find(e=>e.id===id); startBattle(cfg,null); startDodge(); B.atk=atk; B.box=B.target.slice(); return !!PATTERNS[atk]; },get D(){return D},get stones(){return stones},get dun1Done(){return dun1Done},ENT,enterRoom:(i,f)=>enterRoom(i,f),get endKind(){return endKind},get state(){return state},P,get B(){return B},get enemies(){return enemies},LEAFY,get dialog(){return dialog}};
 
-const GAME_BUILD='f3a7f8bf913c3645';
+const GAME_BUILD='4c8f97ce97824484';
 function updSaveAll(){ try{ if(typeof MCS!=='undefined'&&MCS&&typeof mcSave==='function') mcSave(); }catch(e){}
   try{ if(typeof saveGame==='function'&&typeof state==='string'&&state!=='mc'&&state!=='mcmenu') saveGame(); }catch(e){} }
 function updShow(build){ if(window._updOffer) return; window._updOffer=build; const el=document.getElementById('upd'); if(!el) return;
