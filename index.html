@@ -2370,10 +2370,6 @@ function applyHash(){
   if(k==='worlds'){ openWorlds(); }
 }
 const waitLoad=setInterval(()=>{ if(loaded>=names.length){ clearInterval(waitLoad); applyHash(); } },20);
-// ======================= v6 STAGE B: MULTIVERSE CHAOS (campaign 2) =======================
-// Rooms are 25x15 tiles of 16px (one screen each), like the dungeons. Chapters live in MC_CH (prologue = 0, chapters 1..5).
-// tiles: # wall  . floor  , floor deco  T prop (solid)  ~ water/pit (solid)  G gate (solid until solved)  B block  P plate  1-4 step pads (in order)
-//        side rooms (2-D): X solid ground  ^ spikes
 const MC_SAVE='worlds_mc_v1';
 let MCS=null, MC_RC=null, MCMENU=null;
 const MC_CH=[], MC_BOSS={};
@@ -2635,6 +2631,7 @@ function mcDarkness(r){ if(!MC_DARK){ MC_DARK=document.createElement('canvas'); 
   hole(P.x,P.y-10,58+Math.sin(T*3)*3); for(const o of mcObjs()) if(o.glow) hole(o.x+(o.gx||0),o.y+(o.gy||-14),o.glow);
   t.globalCompositeOperation='source-over'; g.drawImage(MC_DARK,0,0);
   for(const o of mcObjs()) if(o.glow){ g.fillStyle=`rgba(255,250,160,${0.5+0.3*Math.sin(T*5+o.x)})`; g.fillRect(Math.round(o.x+(o.gx||0))-2,Math.round(o.y+(o.gy||-14))-2,4,4); } }
+
 
 // ---------- MULTIVERSE CHAOS: PROLOGUE + "fix your machine" quest (Leafy Green World again) ----------
 const MC_PROLOGUE=[
@@ -4624,6 +4621,7 @@ function labDraw(){ labInit(); const L=MCS.lab; if(!LABRT) labResetCreature(true
   LAB.ctx.putImageData(LAB.img,0,0); g.imageSmoothingEnabled=false; g.drawImage(LAB.cv,0,0,VW,VH);
   // vignette
   const vg=g.createRadialGradient(VW/2,VH/2,60,VW/2,VH/2,250); vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(0,0,0,0.85)'); g.fillStyle=vg; g.fillRect(0,0,VW,VH);
+  if(typeof doomDrawAmmoLabels==='function') doomDrawAmmoLabels(spr,W,H,hz);
   if(prox>0.3){ g.fillStyle=`rgba(120,0,0,${(prox-0.3)*0.25*(0.6+0.4*Math.sin(T*9))})`; g.fillRect(0,0,VW,VH); }
   if((R&&R.stun>0)||(L.boss&&L.boss.stun>0)){ if(Math.floor(T*16)%2){ g.fillStyle='rgba(220,220,255,0.10)'; g.fillRect(0,0,VW,VH); } if(typeof labStatic==='function') labStatic(0.18+0.08*Math.sin(T*20)); g.fillStyle='#ffe86a'; for(let i=0;i<5;i++){ const a=T*4+i*1.26, x=200+Math.cos(a)*28, y=54+Math.sin(a*1.4)*8-i; g.fillRect(x,y,2,2); g.fillRect(x-2,y+1,6,1); } txt('* STUNNED',200,44,'#ffe86a',10,'center'); }
   doomDrawView();
@@ -4636,6 +4634,7 @@ function labDraw(){ labInit(); const L=MCS.lab; if(!LABRT) labResetCreature(true
     // MID marker for the middle room (always, so you can find the center)
     g.strokeStyle='#ffe14a'; g.lineWidth=1; g.strokeRect(ox+11*2-0.5, oy+11*2-0.5, 5*2+1, 5*2+1);
     txt('MID', ox+13*2+1, oy+11*2-8, '#ffe14a', 6, 'center');
+    if(typeof doomAmmoBlips==='function') doomAmmoBlips(ox,oy);
     g.fillStyle='#fff'; g.fillRect(ox+Math.floor(L.x*2)-1,oy+Math.floor(L.y*2)-1,2,2); }
   if(!dialog&&!L.hide&&!R.js){ const f=labFacing(), n=labNoteNear(); let p='';
     if(doomChestNear()) p='Z: open the chest'; else if(f&&f.c==='L'&&f.d<1.2) p='Z: hide in the locker'; else if(f&&f.c==='C'&&f.d<1.3) p='Z: read the scratches'; else if(f&&f.c==='E'&&f.d<1.3) p='Z: open the exit door'; else if(n) p='Z: read the note';
@@ -4759,7 +4758,7 @@ function doomPlace(){ if(LAB.dp) return doomAddGoldBoxes(LAB.dp); const M=LAB.M,
   for(const c of cor.slice().sort((a,b)=>a[3]-b[3])){ if(picks.length>=kinds.length) break; if(far(c[0],c[1],[...taken,...picks],2)) picks.push([c[0],c[1]]); }
   LAB.dp={chests:chests.map(([x,y,w],i)=>({i,x:x+0.5,y:y+0.5,w})),imps:imps.map(([x,y],i)=>({i,x:x+0.5,y:y+0.5})),picks:picks.map(([x,y],i)=>({i,x:x+0.5,y:y+0.5,k:kinds[i]}))};
   return doomAddGoldBoxes(LAB.dp); }
-function doomAddGoldBoxes(dp){ if(!dp) return dp; if(dp.boxV2) return dp;
+function doomAddGoldBoxes(dp){ if(!dp) return dp;
   labInit(); const M=LAB.M, N=LAB_N, used=[];
   for(const c of (dp.chests||[])) used.push([Math.floor(c.x),Math.floor(c.y)]);
   for(const p of (dp.picks||[])) used.push([Math.floor(p.x),Math.floor(p.y)]);
@@ -4767,16 +4766,33 @@ function doomAddGoldBoxes(dp){ if(!dp) return dp; if(dp.boxV2) return dp;
   const taken=(x,y,m)=>used.every(([a,b])=>Math.abs(a-x)+Math.abs(b-y)>=m);
   const fl=(x,y)=>M[y]&&M[y][x]==='.';
   const spots=[];
-  for(const [x,y] of [[12,13],[14,13],[13,12],[13,14],[11,13],[15,13],[12,12],[14,14]]){
-    if(spots.length>=4) break; if(fl(x,y)&&taken(x,y,1)){ spots.push([x,y]); used.push([x,y]); } }
-  const mid=(x,y)=>x>=11&&x<=15&&y>=11&&y<=15;
-  const hall=[]; for(let y=3;y<24;y++) for(let x=3;x<24;x++){ if(!fl(x,y)||mid(x,y)) continue; if(LAB.d0&&LAB.d0[y*N+x]<2) continue; hall.push([x,y]); }
-  hall.sort((a,b)=>((a[0]*31+a[1]*17)%97)-((b[0]*31+b[1]*17)%97));
-  let n=0; for(const [x,y] of hall){ if(n>=10) break; if(taken(x,y,3)){ spots.push([x,y]); used.push([x,y]); n++; } }
+  // One box in sight of the lab entrance: spawn is (5.5,21.5) facing north, and (5,19) is a wall,
+  // so (5,20) sits dead-center in the first view (also works for mid-lab saves from before v22).
+  const hasEnt=(dp.picks||[]).some(p=>p.gold&&Math.hypot((p.x||0)-5.5,(p.y||0)-20.5)<1.15);
+  if(!hasEnt){ for(const [x,y] of [[5,20],[6,20],[4,20],[6,21],[4,21],[5,22]]){ if(fl(x,y)){ spots.push([x,y]); used.push([x,y]); break; } } }
+  if(!dp.boxV2){
+    for(const [x,y] of [[12,13],[14,13],[13,12],[13,14],[11,13],[15,13],[12,12],[14,14]]){
+      if(spots.filter(([a,b])=>a>=11&&a<=15&&b>=11&&b<=15).length>=4) break;
+      if(fl(x,y)&&taken(x,y,1)){ spots.push([x,y]); used.push([x,y]); } }
+    const mid=(x,y)=>x>=11&&x<=15&&y>=11&&y<=15;
+    const hall=[]; for(let y=3;y<24;y++) for(let x=3;x<24;x++){ if(!fl(x,y)||mid(x,y)) continue; if(LAB.d0&&LAB.d0[y*N+x]<2) continue; hall.push([x,y]); }
+    hall.sort((a,b)=>((a[0]*31+a[1]*17)%97)-((b[0]*31+b[1]*17)%97));
+    let n=0; for(const [x,y] of hall){ if(n>=10) break; if(taken(x,y,3)){ spots.push([x,y]); used.push([x,y]); n++; } }
+  }
   let i0=0; for(const p of (dp.picks||[])) if((p.i|0)>=i0) i0=(p.i|0)+1;
   if(!dp.picks) dp.picks=[];
   for(const [x,y] of spots) dp.picks.push({i:i0++,x:x+0.5,y:y+0.5,k:'bullets',gold:true});
-  dp.boxV2=true; return dp; }
+  dp.boxV2=true; dp.boxV3=true; return dp; }
+// Respawning gold ammo boxes in the middle-room Abomination fight (final battle).
+const DOOM_FIGHT_BOX_SPOTS=[[11.5,11.5],[15.5,11.5],[11.5,13.5],[15.5,13.5],[11.5,15.5],[15.5,15.5]];
+const DOOM_FIGHT_BOX_RESPAWN=17;
+function doomFightBoxesEnsure(){ const L=MCS&&MCS.lab, R=DOOM; if(!L||!L.boss||!R) return [];
+  if(!R.fightBoxes) R.fightBoxes=DOOM_FIGHT_BOX_SPOTS.map((p,i)=>({i:2000+i,x:p[0],y:p[1],k:'bullets',gold:true,up:true,rt:0}));
+  return R.fightBoxes; }
+function doomFightBoxesTick(dt){ const boxes=doomFightBoxesEnsure(); for(const b of boxes){ if(!b.up){ b.rt-=dt; if(b.rt<=0){ b.up=true; b.rt=0; } } } }
+function doomFightBoxesPick(){ const L=MCS.lab, R=DOOM; if(!L||!L.boss||!R) return;
+  for(const b of doomFightBoxesEnsure()){ if(!b.up||Math.hypot(b.x-L.x,b.y-L.y)>0.95) continue; if(doomTake(b.k)){ b.up=false; b.rt=DOOM_FIGHT_BOX_RESPAWN; } } }
+function doomAmmoLook(p,i){ const gold=!!(p&&(p.gold||p.fight||p.gold===true)); const n=Number(String(i).replace?String(i).replace(/\D+/g,''):i); const ph=(isFinite(n)&&n)?n:((p.x||0)*10+(p.y||0)); return {x:p.x,y:p.y,im:(LAB.da&&LAB.da.ammo)||(LAB.da&&LAB.da.pick&&LAB.da.pick.bullets),hh:gold?0.62:0.22,lift:gold?(0.14+0.10*Math.sin(T*5+ph)):0.04*Math.sin(T*3+ph),label:gold?'AMMO':null,ammo:gold}; }
 function doomBlob(n,c1,c2){ const rows=[]; for(let y=0;y<n;y++){ let r=''; for(let x=0;x<n;x++){ const d=Math.hypot(x+0.5-n/2,y+0.5-n/2)/(n/2); r+=d<0.5?'B':d<0.95?'b':'.'; } rows.push(r); } return labTiny(rows,{b:c1,B:c2}); }
 function doomArt(){ if(LAB.da) return LAB.da; const ex=(name,fw,fh,cols,row,ox)=>{ const im=IMG[name]; if(!im||!im.width) return null; const c=document.createElement('canvas'); c.width=im.width; c.height=im.height; const t=c.getContext('2d'); t.drawImage(im,0,0); const d=t.getImageData(0,0,im.width,im.height).data;
     const out=[]; for(let f=0;f<cols;f++){ const a=new Uint8ClampedArray(fw*fh*4); for(let y=0;y<fh;y++) for(let x=0;x<fw;x++){ const s=((row*fh+y)*im.width+(ox||0)+f*fw+x)*4, o=(y*fw+x)*4; for(let k=0;k<4;k++) a[o+k]=d[s+k]; } out.push({w:fw,h:fh,d:a}); } return out; };
@@ -4784,7 +4800,28 @@ function doomArt(){ if(LAB.da) return LAB.da; const ex=(name,fw,fh,cols,row,ox)=
   LAB.da={imp:misc?misc.slice(0,5):null,chest:misc?misc.slice(5,7):null,pick:pk?{bullets:pk[0],shells:pk[1],nails:pk[2],cells:pk[3],health:pk[4]}:null,
     boss:ex('b_abomination',128,128,4,0),bossA:ex('b_abomination',128,128,4,1),
     nail:labTiny(['..oo..','oooooo','..oo..'],{o:[220,224,236]}),bolt:doomBlob(8,[60,200,70],[230,255,180]),slime:doomBlob(8,[110,190,40],[210,255,130]),acid:doomBlob(10,[230,60,40],[255,220,140])};
-  LAB.da.ammo=labTiny(['xxxxxxxxxxxxxxxx','xYYYYYYYYYYYYYYx','xYyyyyyyyyyyyyYx','xYyAAAAyyAAAAyYx','xYyAAAAyyAAAAyYx','xYyyyyyyyyyyyyYx','xYyAAAAyyAAAAyYx','xYyAAAAyyAAAAyYx','xYyyyyyyyyyyyyYx','xYYYYYYYYYYYYYYx','xxxxxxxxxxxxxxxx'],{x:[40,28,12],Y:[220,170,40],y:[190,140,36],A:[250,230,90]});
+  LAB.da.ammo=labTiny([
+    '............................',
+    '..hhhhhhhhhhhhhhhhhhhhhhhh..',
+    '.hhxxxxxxxxxxxxxxxxxxxxxxhh.',
+    '.hxYYYYYYYYYYYYYYYYYYYYYYxh.',
+    '.hxYyyyyyyyyyyyyyyyyyyyyYxh.',
+    '.hxYy..................yYxh.',
+    '.hxYy...k..k.k.k.k.kkk.yYxh.',
+    '.hxYy..kkk.kkk.kkk.k.k.yYxh.',
+    '.hxYy..k.k.k.k.k.k.k.k.yYxh.',
+    '.hxYy..k.k.k.k.k.k.kkk.yYxh.',
+    '.hxYy..................yYxh.',
+    '.hxYyyyyyyyyyyyyyyyyyyyyYxh.',
+    '.hxYy.AAAA........AAAA.yYxh.',
+    '.hxYy.AAAA........AAAA.yYxh.',
+    '.hxYyyyyyyyyyyyyyyyyyyyyYxh.',
+    '.hxYYYYYYYYYYYYYYYYYYYYYYxh.',
+    '.hhxxxxxxxxxxxxxxxxxxxxxxhh.',
+    '..hhhhhhhhhhhhhhhhhhhhhhhh..',
+    '............................'],
+    {x:[50,32,10],Y:[255,210,40],y:[230,170,30],A:[255,245,120],h:[255,200,40],k:[40,18,8]});
+  if(LAB.da.ammo) LAB.da.ammo.glow=true;
   if(LAB.da.pick&&!LAB.da.pick.bullets) LAB.da.pick.bullets=LAB.da.ammo;
   for(const k of ['nail','bolt','slime','acid']) LAB.da[k].glow=true; return LAB.da; }
 function doomRT(){ const L=MCS.lab, D=doomEnsure(L), dp=doomPlace();
@@ -4901,14 +4938,17 @@ function doomShots(dt){ const L=MCS.lab, R=DOOM;
       if(s.mine){ for(const t of doomTargets()){ if(Math.hypot(t.x-s.x,t.y-s.y)<t.r+0.08){ doomDamage(t,s.dmg); s.life=0; R.fx.push({x:s.x,y:s.y,t:0.2,k:s.k==='bolt'?'leafpop':'blood'}); if(s.splash) doomSplash(s,t); break; } } }
       else if(Math.hypot(L.x-s.x,L.y-s.y)<0.3){ s.life=0; doomHurt(s.dmg,s.k); doomSnd('splat'); } } }
   R.shots=R.shots.filter(s=>s.life>0); for(const f of R.fx) f.t-=dt; R.fx=R.fx.filter(f=>f.t>0); doomGlassTick(dt);
-  const D=L.doom; for(const p of doomPlace().picks){ const r=(p.gold||p.k==='bullets')?0.85:0.6; if(D.picks.includes(p.i)||Math.hypot(p.x-L.x,p.y-L.y)>r) continue; if(doomTake(p.k)) D.picks.push(p.i); }
-  if(R.drops) R.drops=R.drops.filter(p=>!(Math.hypot(p.x-L.x,p.y-L.y)<0.85&&doomTake(p.k))); }
+  const D=L.doom; for(const p of doomPlace().picks){ const r=(p.gold||p.k==='bullets')?0.95:0.6; if(D.picks.includes(p.i)||Math.hypot(p.x-L.x,p.y-L.y)>r) continue; if(doomTake(p.k)) D.picks.push(p.i); }
+  if(R.drops) R.drops=R.drops.filter(p=>!(Math.hypot(p.x-L.x,p.y-L.y)<0.95&&doomTake(p.k)));
+  doomFightBoxesPick(); }
 function doomSplash(s,skip){ for(const t of doomTargets()) if(t!==skip&&Math.hypot(t.x-s.x,t.y-s.y)<s.splash) doomDamage(t,s.dmg*0.5); }
 function doomTake(k){ const D=MCS.lab.doom, [am,n]=DMPICK[k];
   if(am==='health'){ if(P.hp>=P.max) return false; P.hp=Math.min(P.max,P.hp+Math.round(P.max*0.25)); doomSnd('pick'); mcToast('* You picked up a MEDKIT.',1.4); return true; }
   if(D.ammo[am]>=DAM_MAX[am]) return false; D.ammo[am]=Math.min(DAM_MAX[am],D.ammo[am]+n); doomSnd('pick'); mcToast(`* Picked up ${n} ${DAM_NAME[am]}.`,1.4); return true; }
 // ---- per-frame update (called from labUpdate before walking) ----
 function doomUpdate(dt){ const L=MCS.lab, R=doomRT(), D=L.doom; R.cd=Math.max(0,R.cd-dt); R.fireT=Math.max(0,R.fireT-dt); R.flashT=Math.max(0,R.flashT-dt); R.hurtT=Math.max(0,R.hurtT-dt); labLuckTick(dt);
+  if(L.boss) doomFightBoxesTick(dt);
+  if(!D.boxHint&&D.intro&&!dialog&&!L.boss){ D.boxHint=true; mcToast('* Gold AMMO boxes glow in the dark. Gold dots mark them on the map.',2.8); }
   if(R.chestAnim){ R.chestAnim.t+=dt; if(R.chestAnim.t>1.4) R.chestAnim=null; }
   if(R.dieT>0){ R.dieT+=dt; if(R.dieT>2.4){ R.dieT=0; P.hp=P.max; R.shots=[]; if(L.boss){ doomBossReset(); } else { labAfterCatch(); for(const m of R.imps) if(m.hp>0){ m.mode='idle'; m.x=m.hx; m.y=m.hy; } } } return true; }
   if(!D.intro){ D.intro=true; mcSave(); say(['* Something is lying by the ladder... a FLASHLIGHT, a PISTOL and a box of ammo.','* (F or LIGHT: flashlight.  X or tap: shoot.  Z: use.  1-5 / SWITCH: weapons.)','* There are CHESTS somewhere in these halls. Maybe more weapons...']); return true; }
@@ -4927,9 +4967,9 @@ function doomUse(){ const c=doomChestNear(); if(c){ doomOpenChest(c); return; } 
 function doomBossHP(){ return [0,45,60,75,90][DIFF_N[DIFF]||2]; }
 function doomBossStart(){ const L=MCS.lab; doomRT(); L.fighting=false; L.hunt=false; L.x=12.5; L.y=15.3; L.a=-Math.PI/2; const hp=doomBossHP();
   L.boss={hp,max:hp,x:13.5,y:11.8,hx:13.5,hy:11.8,t:0,spit:2.2,stab:0,stabT:0,hurt:0,anim:0,down:false,choice:0,summoned:false,ph:1};
-  DOOM.shots=[]; for(const m of DOOM.imps) m.mode='idle'; LABRT.x=1.5; LABRT.y=1.5; LABRT.path=[]; labAudioStart(); mcSave(); mcToast('* THE ABOMINATION! Shoot it!',2.6); }
+  DOOM.shots=[]; DOOM.fightBoxes=null; doomFightBoxesEnsure(); for(const m of DOOM.imps) m.mode='idle'; LABRT.x=1.5; LABRT.y=1.5; LABRT.path=[]; labAudioStart(); mcSave(); mcToast('* THE ABOMINATION! Gold AMMO boxes in this room come back after a few seconds. Shoot it!',2.8); }
 function doomBossReset(){ const L=MCS.lab, b=L.boss; b.hp=b.max; b.x=13.5; b.y=11.8; b.down=false; b.spit=2.5; b.stabT=0; b.summoned=false; L.x=12.5; L.y=15.3; L.a=-Math.PI/2; DOOM.shots=[];
-  DOOM.imps=DOOM.imps.filter(m=>!m.boss); say(['* ...you get back up. Your weapons are still with you.','* THE ABOMINATION is waiting in the middle room.']); }
+  DOOM.imps=DOOM.imps.filter(m=>!m.boss); DOOM.fightBoxes=null; doomFightBoxesEnsure(); say(['* ...you get back up. Your weapons are still with you.','* THE ABOMINATION is waiting in the middle room.']); }
 function doomBossUpdate(dt){ const L=MCS.lab, b=L.boss, R=DOOM; b.anim+=dt; b.hurt=Math.max(0,b.hurt-dt);
   if(b.stunCd>0) b.stunCd-=dt;
   if(b.stun>0&&!b.down){ b.stun-=dt; return; }
@@ -4965,14 +5005,27 @@ function doomLight(dist,x,out,flick){ const L=MCS.lab, D=L&&L.doom, W=LAB_W, c=(
   if(D.flash){ const cone=Math.max(0,1-Math.pow(c/0.62,2)); l=0.03+1.2/(1+dist*dist*0.22)*(0.08+0.92*cone)*flick; }
   else l=0.03+0.45/(1+dist*dist*0.7)*(1-0.6*c*c)*flick;
   if(DOOM&&DOOM.flashT>0) l+=0.45/(1+dist*0.5); if(out) l+=0.3; return l>0.97?0.97:l; }
-function doomSprites(spr){ const L=MCS.lab, R=DOOM, A=doomArt(), D=L.doom; if(!R||!A.imp) return;
-  for(const c of doomPlace().chests){ const op=D.chests.includes(c.i); spr.push({x:c.x,y:c.y,im:A.chest[op?1:0],hh:0.36,lift:0}); }
-  for(const p of doomPlace().picks) if(!D.picks.includes(p.i)){ const gold=p.gold||p.k==='bullets'; spr.push({x:p.x,y:p.y,im:gold?(A.ammo||(A.pick&&A.pick.bullets)):((A.pick&&A.pick[p.k])||A.ammo),hh:gold?0.42:0.22,lift:0.04*Math.sin(T*3+p.i)}); }
-  for(const p of R.drops||[]) spr.push({x:p.x,y:p.y,im:(A.ammo)||(A.pick&&A.pick[p.k])||A.ammo,hh:0.42,lift:0.08+0.05*Math.sin(T*5+p.x)});
+function doomSprites(spr){ const L=MCS.lab, R=DOOM, A=doomArt(), D=L.doom; if(!R||!A) return;
+  if(A.chest) for(const c of doomPlace().chests){ const op=D.chests.includes(c.i); spr.push({x:c.x,y:c.y,im:A.chest[op?1:0],hh:0.36,lift:0}); }
+  for(const p of doomPlace().picks) if(!D.picks.includes(p.i)){ const gold=!!p.gold; const im=gold?(A.ammo||(A.pick&&A.pick.bullets)):((A.pick&&A.pick[p.k])||A.ammo); if(!im) continue; spr.push(Object.assign(doomAmmoLook(p,p.i),{im})); }
+  for(const p of R.drops||[]){ const im=A.ammo||(A.pick&&A.pick[p.k])||A.ammo; if(!im) continue; spr.push(Object.assign(doomAmmoLook({x:p.x,y:p.y,gold:true},p.x),{im})); }
+  if(L.boss) for(const p of doomFightBoxesEnsure()) if(p.up){ const im=A.ammo||(A.pick&&A.pick.bullets); if(!im) continue; spr.push(Object.assign(doomAmmoLook(p,p.i),{im,fight:true})); }
   for(const c of R.corpses) spr.push({x:c.x,y:c.y,im:A.imp[4],hh:0.5,lift:0});
   for(const m of R.imps) if(m.hp>0) spr.push({x:m.x,y:m.y,im:A.imp[m.hurt>0?3:m.throwT>0?2:Math.floor(m.anim*4)%2],hh:0.62,lift:0,cre:true});
   for(const s of R.shots){ const im=A[s.k]||A.acid||A.nail; if(!im) continue; spr.push({x:s.x,y:s.y,im,hh:s.k==='chunk'?0.12:s.k==='acid'?0.1:s.k==='nail'?0.04:0.07,lift:0.42,glowAll:true}); }
   if(L.boss&&A.boss){ const b=L.boss, f=Math.floor(b.anim*(b.ph>1?7:4))%4; spr.push({x:b.x,y:b.y,im:(b.atkT>0||b.stabT>0)&&A.bossA?A.bossA[f]:A.boss[f],hh:b.down?0.9:1.7,lift:b.down?-0.15:(b.stabT>0?0.05:0),cre:true,boss:true}); } }
+function doomDrawAmmoLabels(spr,W,H,hz){ if(!spr) return;
+  for(const s of spr){ if(!s.label||!(s.tz>0.25)) continue; const scx=W/2*(1+s.tx/s.tz); if(scx<2||scx>W-2) continue;
+    const col=Math.floor(scx); if(col>=0&&col<W&&LAB.z&&s.tz>=LAB.z[col]) continue;
+    const full=H/s.tz, sh=full*s.hh, fy=hz+full/2-s.lift*full, top=fy-sh;
+    const X=scx*VW/W, Y=Math.max(16,top*VH/H-9);
+    g.fillStyle='rgba(0,0,0,0.6)'; g.fillRect(X-16,Y-1,32,11);
+    txt(s.label,X,Y,'#ffe14a',8,'center'); } }
+function doomAmmoBlips(ox,oy){ const L=MCS&&MCS.lab, D=L&&L.doom; if(!L) return;
+  const dot=(x,y)=>{ const pulse=0.55+0.45*Math.sin(T*6+x); g.fillStyle='rgb('+(200+55*pulse|0)+','+(150+70*pulse|0)+',20)'; g.fillRect(ox+Math.floor(x*2)-1,oy+Math.floor(y*2)-1,3,3); };
+  if(typeof doomPlace==='function'){ for(const p of doomPlace().picks||[]){ if(!p.gold) continue; if(D&&(D.picks||[]).includes(p.i)) continue; dot(p.x,p.y); } }
+  if(DOOM&&DOOM.drops) for(const p of DOOM.drops) dot(p.x,p.y);
+  if(L.boss&&DOOM&&DOOM.fightBoxes) for(const p of DOOM.fightBoxes) if(p.up) dot(p.x,p.y); }
 function doomDrawView(){ const L=MCS.lab, D=L.doom, R=DOOM; if(!R) return; const im=IMG.doom_weap, w=DW[D.cur], i=DW_ORDER.indexOf(D.cur);
   if(R.hurtT>0){ g.fillStyle=`rgba(200,0,0,${R.hurtT*0.9})`; g.fillRect(0,0,VW,VH); }
   if(L.boss&&L.boss.stabT>0&&Math.floor(T*12)%2){ g.fillStyle='rgba(255,40,40,.35)'; g.fillRect(0,0,VW,6); g.fillRect(0,206,VW,6); g.fillRect(0,0,6,212); g.fillRect(VW-6,0,6,212); }
@@ -6488,7 +6541,7 @@ window.__G={encounter:(id,lv)=>{ ENC={t:0.05,cfg:pickEnemy(owPool(),lv||1,id)}; 
   giveLeaves:n=>{ for(let i=0;i<8;i++){ leavesGot[i]=i<n; dunDone[i]=i<n; if(i<n&&!P.keys.includes('leaf'+i)) P.keys.push('leaf'+i); } stones=n; dun1Done=n>0; LEAFY.questGiven=true; },DR:()=>DR(),bossBattle:c=>startBattle(c,{boss:true}),areaNpcs:()=>areaNpcs(),gbGapCheck:n=>gbGapCheck(n),gbVolley:(k,p)=>gbVolley(k,p,[140,104,120,86]),startReveal:()=>startReveal(),get REV(){return REV},BIG_PAPER,FINAL_A,get bpBeaten(){return bpBeaten},get glubbbossBeaten(){return glubbbossBeaten},setGboss:v=>{glubbbossBeaten=v},get leafyToFactory(){return leafyToFactory},setLTF:v=>{leafyToFactory=v},get PEND_SAY(){return PEND_SAY},saveGame:()=>saveGame(),readSlot:i=>readSlot(i),get SLOT(){return SLOT},get FS(){return FS},get PLAYT(){return PLAYT},snapState:()=>snapState(),openFiles:()=>openFiles(),RARE_P,setRare:p=>{RARE_P_OVR=p},LEAFY,invGroups:()=>invGroups(),setArea:k=>setArea(k),goArea:(k,sd)=>goArea(k,sd),get curA(){return curA},AREAS,AREA_NPCS,get hasFrostDrawing(){return hasFrostDrawing},blocked:(x,y)=>blocked(x,y),TP_SEEN,TP_PADS,PUZ,AREA_NAMES,openTP:()=>openTP(),teleportTo:k=>teleportTo(k),get slide(){return D&&D.slide},dunWave:(p,l)=>dunWave(p,l),tryPush:(bx,by,dx,dy)=>{ D.push=1; tryPush([bx,by],dx,dy,0); },AREAS,get MW(){return MW},get cam(){return cam},get AREA_BANNER(){return AREA_BANNER},exitDun:()=>exitDungeon(),ulFight:()=>{ startBattle(ULT_LEAFY,null); },get ulCP(){return ulCP},giveMap:()=>{ hasGlubbbMap=true; if(!P.keys.includes('gmap')) P.keys.push('gmap'); },giveFrost:()=>{ hasFrostDrawing=true; if(!P.keys.includes('fdraw')) P.keys.push('fdraw'); },get CP(){return CP},setCPraw:c=>{CP=c;},DUN_CPS,SHOP_DEFS,CHARMS,GLUBBB_ITEMS,hasAllGlubbb:()=>hasAllGlubbb(),get CUR_SHOP(){return CUR_SHOP},respawnCP:()=>respawnCP(),die:()=>{ state='gameover'; T=0; },get WS(){return WS},unlockMC,mcUnlocked,get FIN(){return FIN},betrayal,get endLeaf(){return endLeaf},
   get hasGlubbbMap(){return hasGlubbbMap},GLUBBB,get MENU(){return MENU},SHOP,SHOPKEEP,FLOWER,ITEMS,testAttack:(id,atk)=>{ const cfg=id==='ultleafy'?ULT_LEAFY:id==='bigpaper'?BIG_PAPER:BOSSES[id]||MC_BOSS[id]||ENEMIES.find(e=>e.id===id); startBattle(cfg,null); startDodge(); B.atk=atk; B.box=B.target.slice(); return !!PATTERNS[atk]; },get D(){return D},get stones(){return stones},get dun1Done(){return dun1Done},ENT,enterRoom:(i,f)=>enterRoom(i,f),get endKind(){return endKind},get state(){return state},P,get B(){return B},get enemies(){return enemies},LEAFY,get dialog(){return dialog}};
 
-const GAME_BUILD='a9c57d5fcc1f1790';
+const GAME_BUILD='e84ef778202cc701';
 function updSaveAll(){ try{ if(typeof MCS!=='undefined'&&MCS&&typeof mcSave==='function') mcSave(); }catch(e){}
   try{ if(typeof saveGame==='function'&&typeof state==='string'&&state!=='mc'&&state!=='mcmenu') saveGame(); }catch(e){} }
 function updShow(build){ if(window._updOffer) return; window._updOffer=build; const el=document.getElementById('upd'); if(!el) return;
