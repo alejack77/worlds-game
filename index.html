@@ -442,7 +442,9 @@ function drawOWHud(){
 const ITEMS={dew:{name:'Dew Drop',heal:5,price:8,desc:'A cool drop of morning dew. +5 HP'},
   tea:{name:'Leaf Tea',heal:10,price:15,desc:'Warm tea brewed from happy leaves. +10 HP'},
   pie:{name:'Berry Pie',heal:20,price:30,desc:'A whole forest-berry pie! +20 HP'},
-  sap:{name:'Golden Sap',heal:999,price:60,desc:'Shiny sap from the oldest tree. FULL HEAL'}};
+  sap:{name:'Golden Sap',heal:999,price:60,desc:'Shiny sap from the oldest tree. FULL HEAL'},
+  almond:{name:'Almond Water',heal:25,price:20,desc:'A cool bottle from the Backrooms. It heals a good amount. +25 HP'},
+  chips:{name:'Chips',heal:8,price:6,desc:'A small bag of chips from the Backrooms. A little heal. +8 HP'}};
 const INV_MAX=8;
 const KEYITEMS={gmap:{name:"Glubbb's Map",desc:'A KEY ITEM. Glubbb drew it himself: "Me drawing bery gud". Select to look at it.'},
   fdraw:{name:"Frosty Glubbb's Drawing",desc:'mwee huabe frostbuite'},
@@ -2493,7 +2495,8 @@ function mcContinue(s){ MCS=Object.assign(mcNew(),s); MCS.diff=diffOk(MCS.diff);
   for(const f of ['doll_talk','fell','warn_stick']) delete MCS.flags[f]; for(const k of Object.keys(MCS.rs||{})) if(k==='4_4') delete MCS.rs[k];
   if(!MC_CH[MCS.ch].rooms[MCS.room]){ MCS.room=MCS.ch===4?1:0; s={...s,x:200,y:124}; MCS.ex=200; MCS.ey=124; }
   // v8: the old bunker tunnel + den (ch3 rooms 5-6) became the 3-D lab. Saves down there go to the hatch (and into the lab if it's not beaten yet).
-  if(MCS.ch===3&&MCS.room>=5){ MCS.room=2; s={...s,x:56,y:60}; MCS.ex=56; MCS.ey=60; if(!MCS.flags.boss_abomination&&!MCS.lab){ labInit(); MCS.lab=labNew(); } }
+  if(MCS.ch===3&&(MCS.room===5||MCS.room===6)){ const nm=MC_CH[3]&&MC_CH[3].rooms[MCS.room]&&MC_CH[3].rooms[MCS.room].name;
+    if(!nm||nm==='DARK TUNNEL'||nm==="ABOMINATION'S DEN"){ MCS.room=2; s={...s,x:56,y:60}; MCS.ex=56; MCS.ey=60; if(!MCS.flags.boss_abomination&&!MCS.lab){ labInit(); MCS.lab=labNew(); } } }
   // Keep an in-progress lab (including a replay after a prior win). Never wipe mid-lab progress.
   if(MCS.lab){ MCS.lab.fighting=false; MCS.lab.hide=false; LABRT=null;
     if(typeof labInit==='function') labInit();
@@ -5442,6 +5445,46 @@ function brGen(){ let seed=4242; const rnd=()=>((seed=(seed*16807)%2147483647)/2
 function brCell(x,y){ const r=BR.M[Math.floor(y)]; return r?(r[Math.floor(x)]||'#'):'#'; }
 function brFloor(c){ return c==='.'||c==='~'||c==='t'; }
 function brPool(x,y){ return x>=15.5; }
+function brPickSpots(){ const N=BR_N, M=BR.M, spots=[];
+  const fl=(x,y)=>M[y]&&(M[y][x]==='.'||M[y][x]==='~'||M[y][x]==='t');
+  const kx=BR.key?Math.floor(BR.key.x):-1, ky=BR.key?Math.floor(BR.key.y):-1;
+  const ex=BR.exit?Math.floor(BR.exit.x):-1, ey=BR.exit?Math.floor(BR.exit.y):-1;
+  for(let y=1;y<N-1;y++) for(let x=1;x<N-1;x++){
+    if(!fl(x,y)) continue;
+    if(x<=4&&y<=4) continue; // spawn
+    if((x===kx&&y===ky)||(x===ex&&y===ey)) continue;
+    if(x>=15&&x<=16&&y>=15&&y<=16) continue; // doorway
+    let n=0, ox=0, oy=0;
+    for(const [a,b] of [[1,0],[-1,0],[0,1],[0,-1]]) if(fl(x+a,y+b)){ n++; ox+=a; oy+=b; }
+    const dead=n===1, corner=n===2&&Math.abs(ox)+Math.abs(oy)===2;
+    if(dead||corner) spots.push({x,y,dead,pool:x>=16,rank:(dead?0:1)*1000+y*N+x});
+  }
+  spots.sort((a,b)=>a.rank-b.rank);
+  return spots; }
+function brEnsurePicks(){ const S=MCS&&MCS.br; if(!S||!BR) return [];
+  if(!S.got) S.got={};
+  if(BR.pickList) return BR.pickList.filter(p=>!S.got[p.id]);
+  const spots=brPickSpots(), lv0=spots.filter(p=>!p.pool), pool=spots.filter(p=>p.pool);
+  const list=[];
+  const take=(arr,kind,n)=>{ let c=0; for(let i=0;i<arr.length&&c<n;i++){ const p=arr[i]; if(list.some(q=>Math.hypot(q.x-(p.x+0.5),q.y-(p.y+0.5))<1.8)) continue; list.push({id:kind+'_'+list.length,k:kind,x:p.x+0.5,y:p.y+0.5}); c++; } };
+  take(lv0,'almond',2); take(pool,'almond',2);
+  take(lv0,'chips',2); take(pool,'chips',3);
+  BR.pickList=list; return list.filter(p=>!S.got[p.id]); }
+function brBlitSprite(im,wx,wy,hh,bob,glow){ const S=MCS.br, W=BR_W, H=BR_H, buf=BR.img.data, hz=H/2;
+  const dx=Math.cos(S.a), dy=Math.sin(S.a), px=-dy*0.66, py=dx*0.66;
+  const inv=1/(px*dy-dx*py), sx_=wx-S.x, sy_=wy-S.y, tX=inv*(dy*sx_-dx*sy_), tZ=inv*(-py*sx_+px*sy_);
+  if(tZ<=0.15) return;
+  const scx=Math.floor(W/2*(1+tX/tZ)), full=H/tZ, sh=full*(hh||0.2), sw=sh*im.w/im.h, top=hz+full/2-full*(0.12+(bob?0.04*Math.sin(T*3):0))-sh, l0=Math.floor(scx-sw/2);
+  const gl=glow?0.85+0.35*Math.sin(T*5):1;
+  for(let x=Math.max(0,l0);x<Math.min(W,l0+sw);x++){ if(tZ>=BR.z[x]) continue; const u=Math.floor((x-l0)*im.w/sw);
+    for(let y=Math.max(0,Math.floor(top));y<Math.min(H,top+sh);y++){ const v=Math.floor((y-top)*im.h/sh), si=(v*im.w+u)*4; if(v<0||v>=im.h||u<0||u>=im.w||im.d[si+3]<128) continue;
+      const i=(y*W+x)*4; buf[i]=Math.min(255,im.d[si]*gl); buf[i+1]=Math.min(255,im.d[si+1]*gl); buf[i+2]=Math.min(255,im.d[si+2]*gl); } }
+  // tiny glow halo around the sprite (findable in the dark)
+  if(glow){ const cx=scx, cy=Math.floor(top+sh*0.45), R=Math.max(2,Math.floor(sh*0.55));
+    for(let x=Math.max(0,cx-R);x<Math.min(W,cx+R);x++){ if(tZ>=BR.z[x]+0.02) continue;
+      for(let y=Math.max(0,cy-R);y<Math.min(H,cy+R);y++){ const d=Math.hypot(x-cx,y-cy); if(d>R) continue;
+        const i=(y*W+x)*4, a=0.18*(1-d/R); buf[i]=Math.min(255,buf[i]+(im.d[0]||200)*a); buf[i+1]=Math.min(255,buf[i+1]+(im.d[1]||220)*a); buf[i+2]=Math.min(255,buf[i+2]+(im.d[2]||180)*a); } } } }
+
 function brTex(){ const T={}, mk=fn=>{ const a=new Uint8ClampedArray(16*16*4); for(let y=0;y<16;y++) for(let x=0;x<16;x++){ const c=fn(x,y), i=(y*16+x)*4; a[i]=c[0]; a[i+1]=c[1]; a[i+2]=c[2]; a[i+3]=255; } return a; };
   let s=7; const r=()=>((s=(s*16807)%2147483647)/2147483647);
   T.y=mk((x,y)=>{ if(y>=14) return [96,74,34]; const st=(x%4===0)?-14:0, ch=((x+y)%4===0)?-8:0, n=r()*8; return [200+st+ch+n,184+st+ch+n,96+st*0.6+n]; });       // mono-yellow wallpaper
@@ -5454,7 +5497,10 @@ function brTex(){ const T={}, mk=fn=>{ const a=new Uint8ClampedArray(16*16*4); f
   T.pc=mk((x,y)=>{ const gr=(x%8===0||y%8===0); return gr?[170,186,192]:[236,244,246]; });
   return T; }
 function brInit(){ if(BR) return; BR=brGen(); BR.T=brTex(); BR.cv=document.createElement('canvas'); BR.cv.width=BR_W; BR.cv.height=BR_H; BR.ctx=BR.cv.getContext('2d'); BR.img=BR.ctx.createImageData(BR_W,BR_H); BR.z=new Float32Array(BR_W);
-  BR.keyIm=labTiny(['...oo.....','..o..o....','..o..ooooo','...oo..o.o','..........'],{o:[230,190,70]}); BR.keyIm.glow=true; }
+  BR.keyIm=labTiny(['...oo.....','..o..o....','..o..ooooo','...oo..o.o','..........'],{o:[230,190,70]}); BR.keyIm.glow=true;
+  // almond water bottle (cyan) + chips bag (gold)
+  BR.almondIm=labTiny(['..www..','.wccw..','.wccw..','.wccw..','wwwwwww','.wAAAw.','.wAAAw.','..www..'],{w:[236,248,255],c:[170,230,245],A:[80,200,230]}); BR.almondIm.glow=true;
+  BR.chipsIm=labTiny(['.yyyyy.','.yrrry.','.yyyyy.','.yGGGy.','.yyyyy.','.yyyyy.'],{y:[240,200,60],r:[200,40,40],G:[80,40,20]}); BR.chipsIm.glow=true; }
 function brStart(){ brInit(); MCS.br={x:2.5,y:2.5,a:Math.PI/4,key:false,t:0}; mcSave(); }
 function brFinish(){ MCS.br=null; brAudioStop(); mcEnterRoom(3,2,{x:56,y:60}); P.x=56; P.y=60; mcSave(); say(['* You turn the key. The door opens into cold, dark water...','* ...and you swim up, up, up, out of the lab. Back in the coral maze!','* (You escaped THE BACKROOMS.)']); }
 function brMarkSeen(){ const S=MCS&&MCS.br; if(!S||!BR) return; const N=BR_N;
@@ -5475,6 +5521,9 @@ function brDrawMap(){ const S=MCS&&MCS.br, N=BR_N, M=BR&&BR.M; if(!S||!M) return
   // EXIT and KEY blips stay visible so you can find them
   if(BR.exit){ g.fillStyle='#40dc5a'; g.fillRect(ox+((BR.exit.x)|0)*sc-1, oy+((BR.exit.y)|0)*sc-1, sc+2, sc+2); }
   if(BR.key&&!S.key){ const pulse=0.55+0.45*Math.sin((S.t||0)*6); g.fillStyle='rgb('+(200+55*pulse|0)+','+(160+60*pulse|0)+',20)'; g.fillRect(ox+Math.floor(BR.key.x)*sc-1, oy+Math.floor(BR.key.y)*sc-1, sc+2, sc+2); }
+  // faint item blips only after you have seen that tile
+  for(const p of brEnsurePicks()){ const tx=Math.floor(p.x), ty=Math.floor(p.y); if((S.seen||'')[ty*N+tx]!=='1') continue;
+    g.globalAlpha=0.7; g.fillStyle=p.k==='almond'?'#8fe8ff':'#ffc85a'; g.fillRect(ox+tx*sc, oy+ty*sc, sc, sc); g.globalAlpha=1; }
   // player arrow (points the way you are looking)
   const px=ox+S.x*sc, py=oy+S.y*sc, cs=Math.cos(S.a), sn=Math.sin(S.a);
   g.fillStyle='#fff'; g.beginPath();
@@ -5491,6 +5540,14 @@ function brUpdate(dt){ brInit(); const S=MCS.br; S.t+=dt; brAudioTick(); brMarkS
     S.step=(S.step||0)+dt; if(S.step>(wet?0.5:0.42)){ S.step=0; brStep(wet); } S.bob=(S.bob||0)+dt*8; }
   brMarkSeen();
   if(!S.key&&Math.hypot(BR.key.x-S.x,BR.key.y-S.y)<0.6){ S.key=true; fanfareSmall(); mcSave(); say(['* Under the water, something glints...','* You found the BACKROOMS KEY! A rusty brass key, still dripping.','* (Now find the EXIT door. It has a green sign.)']); return; }
+  const picks=brEnsurePicks();
+  for(const p of picks){ if(Math.hypot(p.x-S.x,p.y-S.y)<0.62){
+    if(typeof INV_MAX==='number'&&P.inv.length>=INV_MAX){ say(['* A '+(p.k==='almond'?'bottle of ALMOND WATER':'bag of CHIPS')+' sits here. Your bag is full. Come back later.']); return; }
+    if(!ITEMS[p.k]) return;
+    P.inv.push(p.k); S.got=S.got||{}; S.got[p.id]=1; fanfareSmall(); mcSave();
+    if(p.k==='almond') say(['* You found a bottle of ALMOND WATER. It smells sweet and strange.','* (A good heal. Use it from ITEMS, even in a battle.)']);
+    else say(['* A forgotten bag of CHIPS, still strangely crisp.','* (A little heal. Use it from ITEMS, even in a battle.)']);
+    return; } }
   if(pressed.a){ const dx=Math.cos(S.a), dy=Math.sin(S.a); for(let s=0.1;s<1.4;s+=0.1){ const c=brCell(S.x+dx*s,S.y+dy*s); if(c==='X'){ if(S.key) brFinish(); else say(['* A door. A green EXIT sign buzzes above it.','* It is locked. (You need the KEY from the poolrooms.)']); return; } if(!brFloor(c)){ if(c==='y') say(['* The wallpaper is damp. It goes on forever.']); else if(c==='p') say(['* Cold white tiles. Water drips somewhere far away.']); return; } } }
   if(pressed.b||pressed.inv) openInv(); }
 function brDraw(){ brInit(); const S=MCS.br, W=BR_W, H=BR_H, buf=BR.img.data, TX=BR.T, M=BR.M; brAudioTick();
@@ -5519,6 +5576,7 @@ function brDraw(){ brInit(); const S=MCS.br, W=BR_W, H=BR_H, buf=BR.img.data, TX
   if(!S.key){ const k=BR.key, im=BR.keyIm, inv=1/(px*dy-dx*py), sx_=k.x-S.x, sy_=k.y-S.y, tX=inv*(dy*sx_-dx*sy_), tZ=inv*(-py*sx_+px*sy_);
     if(tZ>0.15){ const scx=Math.floor(W/2*(1+tX/tZ)), full=H/tZ, sh=full*0.2, sw=sh*im.w/im.h, top=hz+full/2-full*(0.12+0.04*Math.sin(T*3))-sh, l0=Math.floor(scx-sw/2);
       for(let x=Math.max(0,l0);x<Math.min(W,l0+sw);x++){ if(tZ>=BR.z[x]) continue; const u=Math.floor((x-l0)*im.w/sw); for(let y=Math.max(0,Math.floor(top));y<Math.min(H,top+sh);y++){ const v=Math.floor((y-top)*im.h/sh), si=(v*im.w+u)*4; if(v<0||v>=im.h||u<0||u>=im.w||im.d[si+3]<128) continue; const i=(y*W+x)*4, gl=0.8+0.3*Math.sin(T*6); buf[i]=Math.min(255,im.d[si]*gl); buf[i+1]=Math.min(255,im.d[si+1]*gl); buf[i+2]=im.d[si+2]*gl; } } } }
+  for(const p of brEnsurePicks()){ const im=p.k==='almond'?BR.almondIm:BR.chipsIm; if(im) brBlitSprite(im,p.x,p.y,p.k==='almond'?0.26:0.22,true,true); }
   BR.ctx.putImageData(BR.img,0,0); g.imageSmoothingEnabled=false; g.drawImage(BR.cv,0,0,VW,VH);
   const vg=g.createRadialGradient(VW/2,VH/2,80,VW/2,VH/2,260); vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,pool?'rgba(10,30,40,0.55)':'rgba(30,20,0,0.6)'); g.fillStyle=vg; g.fillRect(0,0,VW,VH);
   // VHS-ish noise line + label
@@ -6718,12 +6776,339 @@ function abomLeaveTap(force){
 { const _mu=mcUpdate; mcUpdate=function(dt){ if(pressed.leave&&(MCS&&(MCS.lab||MCS.br))) abomLeaveTap(); return _mu(dt); }; }
 { const _bd=brDraw; brDraw=function(){ _bd(); if(typeof abomLeaveDraw==='function') abomLeaveDraw(); }; }
 
+// v14: longer Multiverse Chaos chapters (Alejandro: "Make the chapters longer").
+// Each chapter Ch0-9 gets 3 added rooms (2 on the critical path after the second original room, 1 optional side area).
+// Existing room indices are NOT shifted, so old saves and old tests' mcEnterRoom(ch, n) still land in the same place.
+// The east exit of original room 1 is remapped through the new path, then back to original room 2.
+// Ch9: no new enemy types (the 4 live Light World regulars stay in the original factory/market/hoard). New Ch9 rooms have no encounters. Glass King stays the only boss.
+// Glubbb lines, bosses, shards and original NPC lines are untouched.
+Object.assign(PXS,{
+ chest:[{w:'#c89650',d:'#8a5a28',y:'#ffe14a',k:'#2a2010'},["wwwww","wdddw","ydkdy","wwwww"]],
+});
+function lng0(ch){ return MC_CH[ch]&&MC_CH[ch].lng0; }
+function lngNew(ch,room){ return typeof lng0(ch)==='number'&&room>=lng0(ch); }
+function LNG_M(kind,openN,openS,extra){
+  // 25x15 top-down room. kind '#' brick  'T' trees. Open mid-row east+west. Optional n/s holes at cols 11-13.
+  const W=kind||'#'; const rows=[];
+  for(let y=0;y<15;y++){
+    let r='';
+    for(let x=0;x<25;x++){
+      let c='.';
+      if(y===0||y===14) c=W;
+      else if(x===0||x===24) c=(y>=6&&y<=8)?'.':W;
+      else if((x+y)%11===0) c=',';
+      if(openN&&y===0&&x>=11&&x<=13) c='.';
+      if(openS&&y===14&&x>=11&&x<=13) c='.';
+      r+=c;
+    }
+    rows.push(r);
+  }
+  if(extra) extra(rows);
+  return rows;
+}
+function LNG_pads(rows,seqY=7){
+  // pads 1-4 along the walking row, always at x=6,10,14,18
+  const r=rows[seqY].split(''); r[6]='1'; r[10]='2'; r[14]='3'; r[18]='4'; rows[seqY]=r.join('');
+}
+function LNG_blocks(rows){
+  // wall immediately east of each plate so a block cannot be pushed past it
+  const a=rows[6].split(''); a[8]='B'; a[16]='P'; a[17]='#'; rows[6]=a.join('');
+  const b=rows[8].split(''); b[8]='B'; b[16]='P'; b[17]='#'; rows[8]=b.join('');
+}
+function LNG_gateE(rows){
+  for(const y of [6,7,8]){ const r=rows[y].split(''); r[24]='G'; rows[y]=r.join(''); }
+}
+function LNG_npc(sheet,col,row,x,y,lines,o={}){
+  return {k:'npc',x,y,solid:o.solid||10,trad:o.trad||28,spr:[sheet,col,row],spr2:true,
+    draw:o.draw||((q,X,Y)=>sprite(sheet,col+Math.floor(T*2)%2,row,X,Y,o.s||1)),
+    talk:typeof lines==='function'?lines:()=>say(lines)};
+}
+function LNG_sign(x,y,lines){ return {k:'sign',x,y,talk:()=>say(typeof lines==='function'?lines():lines)}; }
+function LNG_chest(x,y,item,lines){
+  return {k:'item',x,y,icon:'chest',rad:16,touch(o){
+    const st=mcRS(), i=mcRoom().objs.indexOf(o); if(st.gone[i]) return;
+    if(item&&ITEMS[item]&&P.inv.length>=INV_MAX){ say(['* A small chest. Your bag is full. Come back later.']); return; }
+    st.gone[i]=true; if(item&&ITEMS[item]) P.inv.push(item); if(typeof o.gold==='number') P.gold=(P.gold||0)+o.gold;
+    fanfareSmall(); say(lines||['* You found a chest!']); mcSave(); }};
+}
+function LNG_walk(x,y,en,x0,x1,sp){
+  return {k:'walker',x,y,x0:x0||x-40,x1:x1||x+40,sp:sp||24,en,s:0.5,touch:(o)=>mcFight({...pickEnemy([en],mcCh().lv||3),mc:true},o)};
+}
+function LNG_link(ch, after){
+  // after original room `after` (usually 1), insert path: base, base+1, then back to after+1. Side = base+2, north of base.
+  const c=MC_CH[ch], base=c.rooms.length; c.lng0=base;
+  const nxt=after+1;
+  c.rooms[after].e=base;
+  if(c.rooms[nxt]&&c.rooms[nxt].w===undefined) c.rooms[nxt].w=base+1;
+  else if(c.rooms[nxt]) c.rooms[nxt].w=base+1;
+  return {base, nxt, after};
+}
+function LNG_push(ch, rooms){ rooms.forEach(r=>MC_CH[ch].rooms.push(r)); }
+
+// ---- Ch0 LEAFY GREEN WORLD (after FOREST PATH 1 -> FACTORY 2) ----
+{ const L=LNG_link(0,1), W='T';
+  const a=LNG_M(W,true,false), b=LNG_M(W), s=LNG_M(W,false,true);
+  LNG_pads(b); LNG_gateE(b);
+  LNG_push(0,[
+   {name:'DEEPER GROVE',banner:true,enc:true,w:L.after,e:L.base+1,n:L.base+2,map:a,objs:[
+     LNG_sign(200,80,['* The forest keeps going. Birds you have never heard are singing.','* NORTH: a hidden glade. EAST: the old stone ring.']),
+     LNG_npc('mc_npc',0,0,300,150,['* WALKER: Another crash? The trees are still talking about the last one.','* WALKER: I saw a kind stranger running west, toward the smashed machine.','* WALKER: If you need parts, the ruins are still east... past the old ring.'])
+   ]},
+   {name:'OLD STONE RING',banner:true,seq:[2,1,4,3],solvedMsg:'* The stones hum. The east path opens!',w:L.base,e:L.nxt,map:b,objs:[
+     LNG_sign(80,80,['* The wind carved a riddle into the moss:','* "SECOND, FIRST, LAST, THEN THE THIRD."','* (Step on the pads in that order: 2, 1, 4, 3.)'])
+   ]},
+   {name:'HIDDEN GLADE',banner:true,enc:false,s:L.base,e:null,w:null,map:s,objs:[
+     LNG_npc('mc_npc',0,0,140,120,['* A tiny sapling wiggles.','* SAPLING: The crash shook my dirt! I almost became a flying tree.','* SAPLING: There is a picnic chest in the grass. The stranger left it, I think.']),
+     Object.assign(LNG_chest(260,160,'pie',['* You found a BERRY PIE in a picnic chest!','* (Someone packed it for a traveler.)']),{gold:0})
+   ]}
+  ]);
+}
+
+// ---- Ch1 CLAY UNIVERSE (after SQUISHY FIELDS 1 -> KILN CAVE 2) ----
+{ const L=LNG_link(1,1);
+  const a=LNG_M('#',true,false), b=LNG_M('#'), s=LNG_M('#',false,true);
+  LNG_blocks(b); LNG_gateE(b);
+  LNG_push(1,[
+   {name:'CLAY GARDEN',banner:true,enc:true,w:L.after,e:L.base+1,n:L.base+2,map:a,objs:[
+     LNG_sign(200,80,['* Soft clay flowers. They squish if you look at them too hard.','* NORTH: a forgotten kiln. EAST: the glaze pantry.']),
+     LNG_npc('mc_npc',2,0,300,140,['* POTTER: Careful, the path is still wet.','* POTTER: The pantry gate only opens if you push the clay lumps onto the plates.','* POTTER: I keep meaning to glaze them. I keep eating lunch instead.'])
+   ]},
+   {name:'GLAZE PANTRY',banner:true,solvedMsg:'* The glaze pots rattle. The pantry gate slides open!',w:L.base,e:L.nxt,map:b,objs:[
+     LNG_sign(80,124,['* "PUSH THE CLAY LUMPS ONTO THE PLATES."','* (Walk into a lump to push it.)'])
+   ]},
+   {name:'FORGOTTEN KILN',banner:true,s:L.base,e:null,w:null,map:s,objs:[
+     LNG_npc('mc_npc',2,0,160,120,['* APPRENTICE: This kiln is cold. The big one in the cave is the one that still works.','* APPRENTICE: I hid a snack here so Claytron would not "borrow" it.']),
+     Object.assign(LNG_chest(280,160,'tea',['* You found a LEAF TEA, still warm somehow.']),{})
+   ]}
+  ]);
+}
+
+// ---- Ch2 2-D TROPICAL (side rooms; after PALM PLATFORMS 1 -> CRAZY TRICKS 2) ----
+{ const L=LNG_link(2,1); const G=typeof G0==='number'?G0:207.99;
+  // ground path is clear so you cannot softlock; extra platforms hold a side cave
+  const run=[
+   ".........................",
+   ".........................",
+   ".........................",
+   ".........................",
+   ".........................",
+   ".........................",
+   ".........................",
+   ".........................",
+   "............XXX..........",
+   ".........................",
+   ".....XXX.................",
+   ".........................",
+   ".........................",
+   "XXXXXXXXXXXXXXXXXXXXXXXXX",
+   "XXXXXXXXXXXXXXXXXXXXXXXXX"];
+  const steps=[
+   ".........................",
+   ".........................",
+   ".........................",
+   ".........................",
+   ".........................",
+   ".........................",
+   "...............XXX.......",
+   ".........................",
+   "..........J..............",
+   ".......XXX...............",
+   ".........................",
+   "....XXX..................",
+   ".........................",
+   "XXXXXXXXXXXXXXXXXXXXXXXXX",
+   "XXXXXXXXXXXXXXXXXXXXXXXXX"];
+  const cave=[
+   ".........................",
+   ".........................",
+   ".........................",
+   ".........................",
+   ".........................",
+   ".........................",
+   ".........................",
+   ".........XXXX............",
+   ".........................",
+   ".....XXX......XXX........",
+   ".........................",
+   ".........................",
+   ".........................",
+   "XXXXXXXXXXXXXXXXXXXXXXXXX",
+   "XXXXXXXXXXXXXXXXXXXXXXXXX"];
+  LNG_push(2,[
+   {name:'COVE RUN',banner:true,side:true,sideY:G,w:L.after,e:L.base+1,map:run,objs:[
+     {k:'sign',x:80,y:G,talk:()=>say(['* "COVE RUN. The sand is honest down here."','* "A lagoon cave hides on the high ledge to the east."'])},
+     LNG_npc('mc_npc2',0,0,250,G,['* BEACH KID: Everything is flat, but the waves still sound round.','* BEACH KID: Todust does not like footprints. Try not to leave big ones.'],{draw:(q,X,Y)=>sprite('mc_npc2',Math.floor(T*2)%2,0,X,Y+1,1)})
+   ]},
+   {name:'TIDE STEPS',banner:true,side:true,sideY:G,w:L.base,e:L.nxt,map:steps,objs:[
+     {k:'sign',x:40,y:G,talk:()=>say(['* "TIDE STEPS. You can walk along the sand, or jump the ledges."','* "The lagoon cave is up on the left-ish ledge."'])},
+     {k:'npc',x:280,y:95.99,solid:0,trad:22,draw:(o,X,Y)=>{ g.fillStyle='#3a2a10'; g.fillRect(X-10,Y-18,20,18); g.fillStyle='#1a1020'; g.fillRect(X-6,Y-14,12,12); },
+       talk:()=>{ say(['* A dark lagoon cave. Cool air spills out.'],()=>mcEnterRoom(2,L.base+2,{x:60,y:G})); } }
+   ]},
+   {name:'LAGOON CAVE',banner:true,side:true,sideY:G,e:null,w:null,map:cave,objs:[
+     Object.assign(LNG_chest(200,G,'tea',['* A watertight chest in the lagoon. Inside: LEAF TEA!']),{}),
+     {k:'sign',x:80,y:G,talk:()=>say(['* "If you can read this, you found the lagoon."','* "The way out is the mouth of the cave."'],()=>mcEnterRoom(2,L.base+1,{x:280,y:95.99}))}
+   ]}
+  ]);
+}
+
+// ---- Ch3 UNDERWATER (after KELP FOREST 1 -> CORAL MAZE 2). Rooms 5-6 (lab path) untouched. ----
+{ const L=LNG_link(3,1);
+  const a=LNG_M('#',true,false), b=LNG_M('#'), s=LNG_M('#',false,true);
+  LNG_pads(b); LNG_gateE(b);
+  LNG_push(3,[
+   {name:'BLUE GROTTO',banner:true,enc:true,w:L.after,e:L.base+1,n:L.base+2,map:a,objs:[
+     LNG_sign(200,80,['* Light falls in shafts through the water.','* NORTH: a quiet pearl nook. EAST: the tide lock.']),
+     LNG_npc('mc_npc2',0,0,300,150,['* DIVER: I used to work in the deep lab. I do not go back.','* DIVER: If you hear about a tape... that was someone braver than me.'],{draw:(q,X,Y)=>sprite('mc_npc2',Math.floor(T*2)%2,0,X,Y,1)})
+   ]},
+   {name:'TIDE LOCK',banner:true,seq:[1,4,2,3],solvedMsg:'* The lock floods, then drains. The east gate opens!',w:L.base,e:L.nxt,map:b,objs:[
+     LNG_sign(80,80,['* An old tide lock. The plaques are worn.','* "OPEN: FIRST, LAST, SECOND, THIRD."','* (Pads: 1, 4, 2, 3.)'])
+   ]},
+   {name:'PEARL NOOK',banner:true,s:L.base,e:null,w:null,map:s,objs:[
+     LNG_npc('mc_npc2',2,0,150,130,['* A clam peeks open, then slams, then peeks again.','* It is not on duty. It is just shy.'],{draw:(q,X,Y)=>sprite('mc_npc2',2+Math.floor(T*2)%2,0,X,Y,1)}),
+     Object.assign(LNG_chest(280,160,'pie',['* A pearl-white chest. Inside: a BERRY PIE, somehow dry.']),{})
+   ]}
+  ]);
+}
+
+// ---- Ch4 TOY WORLD (after PLAYROOM 1 -> BLOCK FORT 2) ----
+{ const L=LNG_link(4,1);
+  const a=LNG_M('#',true,false), b=LNG_M('#'), s=LNG_M('#',false,true);
+  LNG_pads(b); LNG_gateE(b);
+  LNG_push(4,[
+   {name:'DOLL HALL',banner:true,enc:true,w:L.after,e:L.base+1,n:L.base+2,map:a,objs:[
+     LNG_sign(200,80,['* Rows of empty shelves. Someone played here a long time.','* NORTH: the toy attic. EAST: the button box.']),
+     LNG_npc('mc_npc2',0,1,300,150,['* DOLL: If you see A-Bomb, tell him I am NOT scared of fireworks.','* DOLL: I am a little scared of fireworks.'],{draw:(q,X,Y)=>sprite('mc_npc2',Math.floor(T*2)%2,1,X,Y,1)})
+   ]},
+   {name:'BUTTON BOX',banner:true,seq:[3,1,4,2],solvedMsg:'* CLICK-CLICK-CLICK-CLICK! The toy gate pops open!',w:L.base,e:L.nxt,map:b,objs:[
+     LNG_sign(80,80,['* A giant toy box lid, held by four colorful buttons.','* The faded manual says: "3, then 1, then 4, then 2."'])
+   ]},
+   {name:'TOY ATTIC',banner:true,s:L.base,e:null,w:null,map:s,objs:[
+     LNG_npc('mc_npc2',0,1,140,130,['* A wind-up mouse whispers: the attic is for forgotten games.','* It still hopes someone will wind it tomorrow.'],{draw:(q,X,Y)=>sprite('mc_npc2',Math.floor(T*2)%2,1,X,Y,1)}),
+     Object.assign(LNG_chest(280,160,'sap',['* A dusty chest. Inside: GOLDEN SAP! Full heal, if you need it.']),{})
+   ]}
+  ]);
+}
+
+// ---- Ch5 VIDEO GAME WORLD (after CHOMPER MAZE 1 -> INVADER ALLEY 2) ----
+{ const L=LNG_link(5,1);
+  const a=LNG_M('#',true,false), b=LNG_M('#'), s=LNG_M('#',false,true);
+  LNG_pads(b); LNG_gateE(b);
+  LNG_push(5,[
+   {name:'BONUS STAGE',banner:true,enc:true,w:L.after,e:L.base+1,n:L.base+2,map:a,objs:[
+     LNG_sign(200,80,['* BONUS STAGE! No score is shown. That is part of the joke.','* NORTH: a secret CONTINUE. EAST: the high-score pads.']),
+     LNG_npc('mc_npc3',0,0,300,150,['* PIXEL KID: I have been stuck on this bonus for years.','* PIXEL KID: The pads are a cheat code. I wrote them on my hand, then I lost my hand. It is a sprite.','* PIXEL KID: The code is 1, 3, 2, 4. You can have it.'],{draw:(q,X,Y)=>sprite('mc_npc3',Math.floor(T*2)%2,0,X,Y,1)})
+   ]},
+   {name:'HIGH SCORE PADS',banner:true,seq:[1,3,2,4],solvedMsg:'* HIGH SCORE! The pixel gate unlocks!',w:L.base,e:L.nxt,map:b,objs:[
+     LNG_sign(80,80,['* "ENTER CHEAT CODE."','* A sticky note says: 1, 3, 2, 4.'])
+   ]},
+   {name:'SECRET CONTINUE',banner:true,s:L.base,e:null,w:null,map:s,objs:[
+     LNG_npc('mc_npc3',2,0,150,130,['* A floating 1-UP looks at you hopefully.','* It cannot actually give you an extra life. It is very sorry.'],{draw:(q,X,Y)=>sprite('mc_npc3',2+Math.floor(T*2)%2,0,X,Y,1)}),
+     Object.assign(LNG_chest(280,160,'pie',['* CONTINUE?  YES   no','* You pick YES. Inside the box: a BERRY PIE.']),{})
+   ]}
+  ]);
+}
+
+// ---- Ch6 DISTORTION WORLD (after UPSIDE-DOWN HALL 1 -> JUMBLED ROOM 2). New rooms are NOT flipped. ----
+{ const L=LNG_link(6,1);
+  const a=LNG_M('#',true,false), b=LNG_M('#'), s=LNG_M('#',false,true);
+  LNG_pads(b); LNG_gateE(b);
+  LNG_push(6,[
+   {name:'SIDEWAYS ALLEY',banner:true,enc:true,w:L.after,e:L.base+1,n:L.base+2,map:a,objs:[
+     LNG_sign(200,80,['* This alley forgot to be upside-down. What a relief.','* NORTH: a lost lobby. EAST: the still room.']),
+     LNG_npc('mc_npc3',0,0,300,150,['* LOST TOURIST: I walked into a wall that was a floor. Then a floor that was a suggestion.','* LOST TOURIST: This alley is the first honest hallway in hours.'],{draw:(q,X,Y)=>sprite('mc_npc3',Math.floor(T*2)%2,0,X,Y,1)})
+   ]},
+   {name:'THE STILL ROOM',banner:true,seq:[4,2,3,1],solvedMsg:'* The room holds still. The wobbly gate opens!',w:L.base,e:L.nxt,map:b,objs:[
+     LNG_sign(80,80,['* The pads here do not jumble. For once.','* A note floats, very calmly: "4, 2, 3, 1."'])
+   ]},
+   {name:'LOST LOBBY',banner:true,s:L.base,e:null,w:null,map:s,objs:[
+     LNG_npc('mc_npc3',2,0,150,130,['* A sofa is on the ceiling, but the receptionist is on the floor.','* RECEPTIONIST: The King likes it when things do not match. I like tea.'],{draw:(q,X,Y)=>sprite('mc_npc3',2+Math.floor(T*2)%2,0,X,Y,1)}),
+     Object.assign(LNG_chest(280,160,'tea',['* A lobby chest marked "COMPLIMENTS OF THE HOUSE". LEAF TEA.']),{})
+   ]}
+  ]);
+}
+
+// ---- Ch7 WOOD WORLD (after STUMP FOREST 1 -> LOG JAM 2) ----
+{ const L=LNG_link(7,1);
+  const a=LNG_M('#',true,false), b=LNG_M('#'), s=LNG_M('#',false,true);
+  LNG_blocks(b); LNG_gateE(b);
+  LNG_push(7,[
+   {name:'PINE TRAIL',banner:true,enc:true,w:L.after,e:L.base+1,n:L.base+2,map:a,objs:[
+     LNG_sign(200,80,['* The pine smell is stronger here. So are the stumps.','* NORTH: a hollow trunk. EAST: the stump switch.']),
+     LNG_npc('mc_npc3',4,0,300,150,['* RANGER: Crazy Axe came through at dawn. The trees still flinch.','* RANGER: If we can stop him, this trail might grow leaves again.'],{draw:(q,X,Y)=>sprite('mc_npc3',4+Math.floor(T*2)%2,0,X,Y,1)})
+   ]},
+   {name:'STUMP SWITCH',banner:true,solvedMsg:'* The logs drop onto the stump-plates. The wooden gate swings open.',w:L.base,e:L.nxt,map:b,objs:[
+     LNG_sign(80,124,['* "ROLL THE LOGS ONTO THE STUMPS."','* (Walk into a log to push it.)'])
+   ]},
+   {name:'HOLLOW TRUNK',banner:true,s:L.base,e:null,w:null,map:s,objs:[
+     LNG_npc('mc_npc3',6,0,150,130,['* A woodcutter who quit sits in the hollow.','* EX-CUTTER: I used to work for him. Then I heard the trees.','* EX-CUTTER: I packed a lunch I never ate.'],{draw:(q,X,Y)=>sprite('mc_npc3',6+Math.floor(T*2)%2,0,X,Y,1)}),
+     Object.assign(LNG_chest(280,160,'pie',['* A lunch tin in the trunk. BERRY PIE, a little pine-scented.']),{})
+   ]}
+  ]);
+}
+
+// ---- Ch8 MUSIC WORLD (after STAFF STREET 1 -> SONG PADS 2) ----
+{ const L=LNG_link(8,1);
+  const a=LNG_M('#',true,false), b=LNG_M('#'), s=LNG_M('#',false,true);
+  LNG_pads(b); LNG_gateE(b);
+  LNG_push(8,[
+   {name:'PRACTICE ROOM',banner:true,enc:true,w:L.after,e:L.base+1,n:L.base+2,map:a,objs:[
+     LNG_sign(200,80,['* Muffled scales leak through the walls. Someone is warming up forever.','* NORTH: the green room. EAST: the hook.']),
+     LNG_npc('mc_npc3',0,0,300,150,['* SESSION PLAYER: The big phone on stage has been sleeping for days.','* SESSION PLAYER: If it wakes up, cover your ears. And maybe your heart.'],{draw:(q,X,Y)=>sprite('mc_npc3',Math.floor(T*2)%2,0,X,Y,1)})
+   ]},
+   {name:'THE HOOK',banner:true,seq:[1,2,4,3],notes:[262,330,523,392],solvedMsg:'* The hook lands. The music gate slides open!',w:L.base,e:L.nxt,map:b,objs:[
+     LNG_sign(80,80,['* A short hook, written on the wall in chalk.','* "Do, Re, high Do, Sol."  (Pads: 1, 2, 4, 3.)'])
+   ]},
+   {name:'GREEN ROOM',banner:true,s:L.base,e:null,w:null,map:s,objs:[
+     LNG_npc('mc_npc3',2,1,150,130,['* A singer sips water and stares at a silent speaker.','* SINGER: If the encore comes, I want to be kind in it.','* SINGER: Also I hid snacks from the stage manager.'],{draw:(q,X,Y)=>sprite('mc_npc3',2+Math.floor(T*2)%2,1,X,Y,1)}),
+     Object.assign(LNG_chest(280,160,'tea',['* A rider-clause chest: "TEA, HONEY, QUIET." You take the LEAF TEA.']),{})
+   ]}
+  ]);
+}
+
+// ---- Ch9 LIGHT WORLD (after BULB FACTORY 1 -> DRY MARKET 2). NO encounters. ----
+{ const L=LNG_link(9,1);
+  const a=mcLWMap(true,true,[[3,3],[21,3],[8,3],[16,3]]), b=mcLWMap(true,true,[[3,3],[21,3]]);
+  // pads + east gate + north hole on dorm, south hole on cupboard
+  (function(){ LNG_pads(b); LNG_gateE(b); })();
+  const s=mcLWMap(false,false,[[3,3],[21,3],[3,11],[21,11]]);
+  (function(){ const r=s[14].split(''); r[11]='.'; r[12]='.'; r[13]='.'; s[14]=r.join(''); })();
+  // punch north on dorm (a)
+  (function(){ const r=a[0].split(''); r[11]='.'; r[12]='.'; r[13]='.'; a[0]=r.join(''); })();
+  LNG_push(9,[
+   {name:'WORKER DORMS',banner:true,w:L.after,e:L.base+1,n:L.base+2,map:a,objs:[
+     mcLP(4,80,80,['* A dim lamp. The bulb is one the workers made. It is not very bright. They are tired.']),
+     mcLPerson(160,150,
+       ['* WORKER: We sleep in shifts so the factory never stops.','* WORKER: He takes the food. He takes the water. He leaves us the work.','* WORKER: If you go east, the cistern is dry. We used to drink there.'],
+       ['* WORKER: We can sleep. We can eat. I had forgotten both.','* WORKER: Thank you. The dorms are noisy with talking now. That is a good noise.']),
+     mcLPerson(300,150,
+       ['* WORKER: I hid a crumb box in the cupboard upstairs. Do not tell the king.','* WORKER: It is not much. It is what we have.'],
+       ['* WORKER: I hid crumbs so we would not starve. You can have the box. We have real food now.'])
+   ]},
+   {name:'EMPTY CISTERN',banner:true,seq:[3,1,4,2],solvedMsg:'* The old valve groans. The east gate opens. The cistern stays dry... for now.',w:L.base,e:L.nxt,map:b,objs:[
+     mcLP(2,200,80,()=>mcFlag('light_free')?['* The cistern is filling! Water spills over the rim, bright as a bulb.','* The workers will not go thirsty tonight.']:['* The cistern is a white bowl of dust.','* A faded sign: "TURN THE VALVES 3, 1, 4, 2. WATER FOR EVERYONE."','* The king turned them the other way, a long time ago.']),
+     mcLPerson(80,150,
+       ['* WORKER: I remember when this was full. We used to splash each other after a shift.','* WORKER: Then the barrels went to the palace, and the laughs went with them.'],
+       ['* WORKER: Listen. Water. I could cry. I think I am crying.'])
+   ]},
+   {name:'CRUMB CUPBOARD',banner:true,s:L.base,e:null,w:null,map:s,objs:[
+     mcLP(1,120,120,['* Crates of half-made bulbs, and behind them a box of hidden crumbs.','* The workers have been saving this for the worst week.']),
+     mcLPerson(200,160,
+       ['* WORKER: If the king finds this, he will take it too.','* WORKER: So we share it first. That is how we stay ourselves.'],
+       ['* WORKER: Take the tea. Take anything. We are going to eat at the market like people again.']),
+     Object.assign(LNG_chest(300,180,'tea',['* A tin of hidden worker-tea. It smells like leftover courage.','* You got a LEAF TEA.']),{})
+   ]}
+  ]);
+}
+
+// gold in a couple of side chests
+(function(){ const ch=MC_CH[0], r=ch.rooms[ch.lng0+2]; const c=r.objs.find(o=>o.icon==='chest'); if(c) c.gold=25; })();
+
 window.__G={encounter:(id,lv)=>{ ENC={t:0.05,cfg:pickEnemy(owPool(),lv||1,id)}; },setEnc:v=>{ENC_ON=v;},get ENC(){return ENC},get encSteps(){return encSteps},setSteps:v=>{encSteps=v;encGrace=0;},DUNS,dunDone,leavesGot,BOSSES,ULT_LEAFY,TIERS,
   enterDun:i=>{ LEAFY.questGiven=true; enterDungeon(i); dialog=null; },solve:()=>{ const st=RS(); st.blocks=st.plates.map(p=>p.slice()); st.solved=true; RCACHE=null; },
   giveLeaves:n=>{ for(let i=0;i<8;i++){ leavesGot[i]=i<n; dunDone[i]=i<n; if(i<n&&!P.keys.includes('leaf'+i)) P.keys.push('leaf'+i); } stones=n; dun1Done=n>0; LEAFY.questGiven=true; },DR:()=>DR(),bossBattle:c=>startBattle(c,{boss:true}),areaNpcs:()=>areaNpcs(),gbGapCheck:n=>gbGapCheck(n),gbVolley:(k,p)=>gbVolley(k,p,[140,104,120,86]),startReveal:()=>startReveal(),get REV(){return REV},BIG_PAPER,FINAL_A,get bpBeaten(){return bpBeaten},get glubbbossBeaten(){return glubbbossBeaten},setGboss:v=>{glubbbossBeaten=v},get leafyToFactory(){return leafyToFactory},setLTF:v=>{leafyToFactory=v},get PEND_SAY(){return PEND_SAY},saveGame:()=>saveGame(),readSlot:i=>readSlot(i),get SLOT(){return SLOT},get FS(){return FS},get PLAYT(){return PLAYT},snapState:()=>snapState(),openFiles:()=>openFiles(),RARE_P,setRare:p=>{RARE_P_OVR=p},LEAFY,invGroups:()=>invGroups(),setArea:k=>setArea(k),goArea:(k,sd)=>goArea(k,sd),get curA(){return curA},AREAS,AREA_NPCS,get hasFrostDrawing(){return hasFrostDrawing},blocked:(x,y)=>blocked(x,y),TP_SEEN,TP_PADS,PUZ,AREA_NAMES,openTP:()=>openTP(),teleportTo:k=>teleportTo(k),get slide(){return D&&D.slide},dunWave:(p,l)=>dunWave(p,l),tryPush:(bx,by,dx,dy)=>{ D.push=1; tryPush([bx,by],dx,dy,0); },AREAS,get MW(){return MW},get cam(){return cam},get AREA_BANNER(){return AREA_BANNER},exitDun:()=>exitDungeon(),ulFight:()=>{ startBattle(ULT_LEAFY,null); },get ulCP(){return ulCP},giveMap:()=>{ hasGlubbbMap=true; if(!P.keys.includes('gmap')) P.keys.push('gmap'); },giveFrost:()=>{ hasFrostDrawing=true; if(!P.keys.includes('fdraw')) P.keys.push('fdraw'); },get CP(){return CP},setCPraw:c=>{CP=c;},DUN_CPS,SHOP_DEFS,CHARMS,GLUBBB_ITEMS,hasAllGlubbb:()=>hasAllGlubbb(),get CUR_SHOP(){return CUR_SHOP},respawnCP:()=>respawnCP(),die:()=>{ state='gameover'; T=0; },get WS(){return WS},unlockMC,mcUnlocked,get FIN(){return FIN},betrayal,get endLeaf(){return endLeaf},
   get hasGlubbbMap(){return hasGlubbbMap},GLUBBB,get MENU(){return MENU},SHOP,SHOPKEEP,FLOWER,ITEMS,testAttack:(id,atk)=>{ const cfg=id==='ultleafy'?ULT_LEAFY:id==='bigpaper'?BIG_PAPER:BOSSES[id]||MC_BOSS[id]||ENEMIES.find(e=>e.id===id); startBattle(cfg,null); startDodge(); B.atk=atk; B.box=B.target.slice(); return !!PATTERNS[atk]; },get D(){return D},get stones(){return stones},get dun1Done(){return dun1Done},ENT,enterRoom:(i,f)=>enterRoom(i,f),get endKind(){return endKind},get state(){return state},P,get B(){return B},get enemies(){return enemies},LEAFY,get dialog(){return dialog}};
 
-const GAME_BUILD='fd64104a2c7f2568';
+const GAME_BUILD='20f726b66199d794';
 function updSaveAll(){ try{ if(typeof MCS!=='undefined'&&MCS&&typeof mcSave==='function') mcSave(); }catch(e){}
   try{ if(typeof saveGame==='function'&&typeof state==='string'&&state!=='mc'&&state!=='mcmenu') saveGame(); }catch(e){} }
 function updShow(build){ if(window._updOffer) return; window._updOffer=build; const el=document.getElementById('upd'); if(!el) return;
